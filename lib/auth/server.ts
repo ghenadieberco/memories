@@ -1,6 +1,6 @@
 import { createNeonAuth } from "@neondatabase/auth/next/server";
 
-import { authEnv } from "@/lib/env";
+import { appEnv, authEnv } from "@/lib/env";
 
 /*
  * Neon Auth (Managed Better Auth) — server instance.
@@ -29,6 +29,70 @@ export function getAuth(): NeonAuthInstance {
   });
 
   return globalForAuth.__memoriesAuth;
+}
+
+/**
+ * Call a Neon Auth endpoint directly, bypassing the SDK.
+ *
+ * Needed because `@neondatabase/auth@0.4.2-beta` declares
+ * `emailOtp.resetPassword` at `email-otp/passcode`, which returns 404 — the
+ * real endpoint is `email-otp/reset-password`. Every password reset failed with
+ * a 404 that surfaced as `user_not_found`, which reads like a bad code.
+ *
+ * An `Origin` header is required: the server checks it against the project's
+ * trusted origins, and a request without one is rejected as MISSING_ORIGIN.
+ * NEXT_PUBLIC_APP_URL is exactly the origin the app is served from, and is one
+ * of the configured trusted values.
+ *
+ * Returns the SDK's `{ data, error }` shape so callers and error mapping are
+ * identical whether or not they go through this path. Re-check this workaround
+ * when the SDK updates.
+ */
+export async function neonAuthPost<T = unknown>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ data: T | null; error: unknown }> {
+  const { NEON_AUTH_BASE_URL } = authEnv();
+  const origin = appEnv().NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+
+  try {
+    const response = await fetch(
+      `${NEON_AUTH_BASE_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = { message: text.slice(0, 200) };
+    }
+
+    if (!response.ok) {
+      const record = (parsed ?? {}) as Record<string, unknown>;
+      return {
+        data: null,
+        error: {
+          status: response.status,
+          statusText: response.statusText,
+          code: record.code ?? "",
+          message: record.message ?? response.statusText,
+        },
+      };
+    }
+
+    return { data: parsed as T, error: null };
+  } catch (thrown) {
+    return {
+      data: null,
+      error: { code: "NETWORK_ERROR", message: String(thrown) },
+    };
+  }
 }
 
 /**

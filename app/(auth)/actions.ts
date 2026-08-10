@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth/server";
+import { auth, neonAuthPost } from "@/lib/auth/server";
 import {
   changePasswordSchema,
   forgotPasswordSchema,
@@ -308,7 +308,15 @@ export async function resetPasswordAction(
 
   const { email, otp, password } = parsed.data;
 
-  const { error } = await auth.emailOtp.resetPassword({ email, otp, password });
+  /*
+   * Direct call, not `auth.emailOtp.resetPassword` — the beta SDK declares that
+   * method at `email-otp/passcode`, which 404s. See neonAuthPost.
+   */
+  const { error } = await neonAuthPost("email-otp/reset-password", {
+    email,
+    otp,
+    password,
+  });
   if (error) {
     return {
       error: authError(

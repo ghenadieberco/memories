@@ -50,6 +50,19 @@ Build **one phase at a time**. Each phase has scope, tasks, and acceptance crite
 > Constraints that matter here: **AWS regions only** (we are on AWS `us-east-1` ✓)
 > and **incompatible with IP Allow / Private Networking** (we use neither).
 
+> ⚠️ **Known SDK defect — `@neondatabase/auth@0.4.2-beta`.** `emailOtp.resetPassword`
+> is declared at `email-otp/passcode`, which returns **404**; the working endpoint is
+> `email-otp/reset-password`. The 404 surfaces as `code: user_not_found`, which reads
+> like a bad verification code and cost real debugging time. `lib/auth/server.ts`
+> exports `neonAuthPost` to call the correct path directly — **re-check this and
+> remove the workaround when the SDK updates.** An audit of all 65 declared endpoints
+> found 9 that 404; the rest (magic-link, JWT, admin, organization, `get-access-token`,
+> `revoke-all-sessions`, `verify-email`) are unused by this app.
+>
+> **Also note:** OTP codes expire in roughly **3 minutes**, and Neon has
+> `sendVerificationEmailOnSignUp = false`, so the app must send the verification
+> code itself after sign-up (it does).
+
 > **Auth note.** Neon Auth (Managed Better Auth) is in **Beta**. It's the lowest-effort path and keeps auth data in your Neon DB. If you need production-hardened guarantees now, the drop-in alternatives are **self-hosted Better Auth** (same library) or **Clerk** — both also work with Neon and Fly. This plan assumes Neon Auth; swapping to self-hosted Better Auth changes only Phase 1 wiring.
 
 ---
