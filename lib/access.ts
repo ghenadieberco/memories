@@ -124,6 +124,28 @@ export async function assertCanDeletePhoto(userId: string, photoId: string) {
 }
 
 /**
+ * Resolve a photo the user is allowed to see, returning it with its memory id
+ * and the caller's access level.
+ *
+ * Photo-scoped features (tagging) need "can this person see the memory this
+ * photo belongs to?" — never "does this photo id exist?".
+ */
+export async function assertCanViewPhoto(userId: string, photoId: string) {
+  const rows = await db
+    .select({ photo: photos, memoryId: memories.id })
+    .from(photos)
+    .innerJoin(memories, eq(memories.id, photos.memoryId))
+    .where(eq(photos.id, photoId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) throw new AccessDeniedError();
+
+  const level = await assertCanViewMemory(userId, row.memoryId);
+  return { photo: row.photo, memoryId: row.memoryId, level };
+}
+
+/**
  * The ONLY unauthenticated data path in the app (FR-SHARE-8/9, plan §2C).
  *
  * Selects strictly by public_token AND public_link_active, returns exactly one

@@ -1,0 +1,237 @@
+"use client";
+
+import { useActionState, useState, useTransition } from "react";
+import { Check, Copy, Link2, Lock, RefreshCw, Share2, Users, X } from "lucide-react";
+
+import {
+  regeneratePublicLinkAction,
+  revokeShareAction,
+  shareMemoryAction,
+  togglePublicLinkAction,
+  updatePermissionAction,
+} from "../share-actions";
+import { Field, FormMessage, SubmitButton } from "@/components/form";
+import { Modal } from "@/components/modal";
+import type { ShareMember } from "@/lib/sharing";
+import type { FormState } from "@/lib/validation";
+
+const initial: FormState = {};
+
+/*
+ * Owner-only sharing panel (FR-SHARE-1..4, 7, 10).
+ *
+ * Roles are named by what people can do, not by the DB enum (style guide §10):
+ * "Can view" / "Can add photos".
+ */
+export function SharePanel({
+  memoryId,
+  members,
+  publicUrl,
+  publicLinkActive,
+}: {
+  memoryId: string;
+  members: ShareMember[];
+  publicUrl: string;
+  publicLinkActive: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [state, formAction] = useActionState(shareMemoryAction, initial);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  function run(action: (fd: FormData) => Promise<FormState>, fields: Record<string, string>) {
+    startTransition(async () => {
+      const body = new FormData();
+      body.append("memoryId", memoryId);
+      for (const [key, value] of Object.entries(fields)) body.append(key, value);
+      const result = await action(body);
+      setPanelError(result.error ?? null);
+    });
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setPanelError("Couldn't copy — select the link and copy it manually.");
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="btn ghost sm" onClick={() => setOpen(true)}>
+        <Share2 size={15} aria-hidden="true" />
+        Share
+      </button>
+
+      {open && (
+        <Modal
+          title="Share this memory"
+          icon={<Users size={17} className="text-purple" aria-hidden="true" />}
+          onClose={() => setOpen(false)}
+        >
+          {panelError && (
+            <p className="form-error mb-3" role="alert">
+              {panelError}
+            </p>
+          )}
+
+          {/* --- Invite someone (FR-SHARE-1/2) --- */}
+          <form action={formAction} className="flex flex-col gap-3">
+            <FormMessage state={state} />
+            <input type="hidden" name="memoryId" value={memoryId} />
+
+            <Field
+              label="Invite by email"
+              name="email"
+              type="email"
+              placeholder="them@example.com"
+              required
+              error={state.fieldErrors?.email}
+              hint="They don't need an account yet — it'll be waiting when they sign up."
+            />
+
+            {/* Stacked, not crammed across one row (style guide §6 Modal). */}
+            <div>
+              <label className="lbl" htmlFor="permission">
+                They can
+              </label>
+              <select
+                id="permission"
+                name="permission"
+                className="field"
+                defaultValue="viewer"
+              >
+                <option value="viewer">Can view</option>
+                <option value="contributor">Can add photos</option>
+              </select>
+            </div>
+
+            <SubmitButton pendingLabel="Sending invite…" className="full">
+              Send invite
+            </SubmitButton>
+          </form>
+
+          {/* --- Current members (FR-SHARE-4) --- */}
+          {members.length > 0 && (
+            <div className="mt-6">
+              <p className="seg-h text-[13px] font-extrabold tracking-wide text-purple uppercase">
+                Shared with
+              </p>
+              <ul className="mt-2 flex flex-col gap-2">
+                {members.map((member) => (
+                  <li
+                    key={member.id}
+                    className="flex flex-wrap items-center gap-2 rounded-[13px] bg-white/60 p-2.5"
+                  >
+                    <span
+                      className="grid size-[30px] shrink-0 place-items-center rounded-full font-display text-[13px] font-semibold text-white"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--purple), var(--orange))",
+                      }}
+                      aria-hidden="true"
+                    >
+                      {member.displayName.trim()[0]?.toUpperCase() ?? "?"}
+                    </span>
+
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-ink">
+                      {member.displayName}
+                      {member.status === "pending" && (
+                        <span className="ml-1.5 text-[12px] font-semibold text-muted-foreground">
+                          invited
+                        </span>
+                      )}
+                    </span>
+
+                    <select
+                      aria-label={`Permission for ${member.displayName}`}
+                      className="field w-auto py-1.5 text-[13px]"
+                      defaultValue={member.permission}
+                      onChange={(event) =>
+                        run(updatePermissionAction, {
+                          shareId: member.id,
+                          permission: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="viewer">Can view</option>
+                      <option value="contributor">Can add photos</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      className="btn danger sm"
+                      aria-label={`Remove ${member.displayName}`}
+                      onClick={() => run(revokeShareAction, { shareId: member.id })}
+                    >
+                      <X size={13} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* --- Public link (FR-SHARE-7/10, NFR-PRIV §5.5) --- */}
+          <div className="mt-6">
+            <p className="seg-h text-[13px] font-extrabold tracking-wide text-purple uppercase">
+              Public link
+            </p>
+
+            <p className="mt-1.5 text-[12.5px] text-muted-foreground">
+              Anyone with this link can view the album without signing in. It&apos;s
+              unlisted, not private — treat it like handing out a key.
+            </p>
+
+            <div className="mt-2.5 flex items-center gap-2">
+              <div className="in-icon flex min-w-0 flex-1 items-center gap-2 rounded-[13px] border border-[rgba(122,47,242,.14)] bg-white/70 px-3 py-2">
+                <Link2 size={15} className="shrink-0 text-purple" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                  {publicUrl}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={copyLink}
+                disabled={!publicLinkActive}
+              >
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() =>
+                  run(togglePublicLinkAction, {
+                    active: publicLinkActive ? "false" : "true",
+                  })
+                }
+              >
+                <Lock size={15} aria-hidden="true" />
+                {publicLinkActive ? "Turn link off" : "Turn link on"}
+              </button>
+
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() => run(regeneratePublicLinkAction, {})}
+                title="Anyone holding the old link loses access"
+              >
+                <RefreshCw size={15} aria-hidden="true" />
+                New link
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

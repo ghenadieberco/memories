@@ -2,6 +2,7 @@ import { ImagePlus } from "lucide-react";
 
 import { CreateMemoryButton } from "./create-memory";
 import { MemoryCard } from "@/components/memory-card";
+import { MemoryTabs } from "@/components/memory-tabs";
 import { listOwnedMemories } from "@/lib/memories";
 import { requireProfile } from "@/lib/profile";
 
@@ -20,6 +21,10 @@ export default async function MemoriesPage() {
           Memories
         </h1>
         {memories.length > 0 && <CreateMemoryButton />}
+      </div>
+
+      <div className="mt-4">
+        <MemoryTabs active="mine" />
       </div>
 
       {memories.length === 0 ? (

@@ -4,7 +4,11 @@ A responsive web app where a signed-in user organizes photos into dated albums (
 
 **Status:** **Phases 0 and 1 built and deployed.** Live at <https://memories.ghenadie-berco.com> (also reachable at `berco-memories.fly.dev`). Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert. Neon Postgres in AWS `us-east-1`, 8 tables migrated; public Tigris bucket `berco-memories-photos`; Neon Auth (Managed Better Auth) enabled with email sign-up + verify-at-sign-up.
 
-Phase 1 ships sign-in / sign-up / verify / forgot-password / reset-password / settings and an empty Memories page, all hand-built to the style guide (D16). **Not yet confirmed end-to-end by a human registration** — that needs a real inbox. Phase 2 (memories & photos) has not been started.
+**Phases 0–3 are built and deployed; Phase 4 is built in reduced form.** Auth, memories, photo upload/optimization, grid and viewer are verified working by the owner. Phase 3 (sharing, "Shared with me", public `/m/[token]` links) and people tagging (FR-SOC-4/5) are deployed but **not yet exercised end-to-end**.
+
+**Comments and likes are out of scope (D20)** — descoped by the product owner. Don't build FR-SOC-1/2/3. The `comments` and `likes` tables remain in the schema, unused, on purpose.
+
+Two live workarounds for defects in `@neondatabase/auth@0.4.2-beta`, both documented in the plan and both to be re-tested when the SDK updates: `emailOtp.resetPassword` points at a 404 path (see `neonAuthPost`), and `auth.middleware()` redirects every non-GET request even with a valid session (see `proxy.ts` — this one silently broke every server action).
 
 The landing page at [app/page.tsx](app/page.tsx) is a temporary Phase 0 status board that runs the Neon + Tigris round-trip checks; Phase 1 replaces it with the real sign-in screen. `/api/health?deep=1` writes to the live bucket — remove or protect it during hardening.
 

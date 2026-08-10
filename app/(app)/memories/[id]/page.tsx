@@ -4,18 +4,25 @@ import { ArrowLeft } from "lucide-react";
 
 import { MemoryActions } from "./memory-actions";
 import { PhotoGrid } from "./photo-grid";
+import { SharePanel } from "./share-panel";
 import { AccessDeniedError } from "@/lib/access";
+import { appEnv } from "@/lib/env";
 import { formatMemoryDate, photoCountLabel } from "@/lib/format";
 import { getMemoryDetail } from "@/lib/memories";
 import { requireProfile } from "@/lib/profile";
+import { listPeopleInMemory, listTagsByPhoto } from "@/lib/people";
+import { listMembers } from "@/lib/sharing";
 
 export const dynamic = "force-dynamic";
 
 /** FR-MEM-5 — open a memory and see its photos. */
 export default async function MemoryDetailPage({
   params,
+  searchParams,
 }: PageProps<"/memories/[id]">) {
   const { id } = await params;
+  const query = await searchParams;
+  const personFilter = typeof query.person === "string" ? query.person : null;
   const user = await requireProfile();
 
   let detail;
@@ -30,6 +37,20 @@ export default async function MemoryDetailPage({
   if (!detail) notFound();
 
   const { memory, photos, canEdit, canAddPhotos } = detail;
+
+  // FR-SHARE-4/7: the owner sees members and the public link; everyone else
+  // sees neither, and never learns the token.
+  const members = canEdit ? await listMembers(memory.id) : [];
+
+  // FR-SOC-5 — people tags, and the filter they power.
+  const tagsByPhoto = await listTagsByPhoto(memory.id);
+  const people = await listPeopleInMemory(memory.id);
+  const visiblePhotos = personFilter
+    ? photos.filter((photo) =>
+        (tagsByPhoto[photo.id] ?? []).some((tag) => tag.personId === personFilter),
+      )
+    : photos;
+  const publicUrl = `${appEnv().NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")}/m/${memory.publicToken}`;
 
   return (
     <>
@@ -56,18 +77,60 @@ export default async function MemoryDetailPage({
         </div>
 
         {canEdit && (
-          <MemoryActions
-            memoryId={memory.id}
-            title={memory.title}
-            memoryDate={memory.memoryDate}
-            hasCustomCover={memory.coverSource !== "auto"}
-          />
+          <div className="flex flex-wrap gap-2">
+            <SharePanel
+              memoryId={memory.id}
+              members={members}
+              publicUrl={publicUrl}
+              publicLinkActive={memory.publicLinkActive}
+            />
+            <MemoryActions
+              memoryId={memory.id}
+              title={memory.title}
+              memoryDate={memory.memoryDate}
+              hasCustomCover={memory.coverSource !== "auto"}
+            />
+          </div>
         )}
       </div>
 
+      {people.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] font-bold text-muted-foreground">
+            Who&apos;s in these
+          </span>
+          <Link
+            href={`/memories/${memory.id}`}
+            className="rounded-full px-3 py-1 text-[12.5px] font-bold"
+            style={
+              personFilter
+                ? { background: "rgba(122,47,242,.12)", color: "var(--purple-d)" }
+                : { background: "var(--purple)", color: "#fff" }
+            }
+          >
+            Everyone
+          </Link>
+          {people.map((person) => (
+            <Link
+              key={person.id}
+              href={`/memories/${memory.id}?person=${person.id}`}
+              className="rounded-full px-3 py-1 text-[12.5px] font-bold"
+              style={
+                personFilter === person.id
+                  ? { background: "var(--purple)", color: "#fff" }
+                  : { background: "rgba(122,47,242,.12)", color: "var(--purple-d)" }
+              }
+            >
+              {person.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
       <PhotoGrid
         memoryId={memory.id}
-        photos={photos}
+        photos={visiblePhotos}
+        tagsByPhoto={tagsByPhoto}
         canAddPhotos={canAddPhotos}
         canSetCover={canEdit}
         currentUserId={user.id}

@@ -54,7 +54,7 @@ export async function requireProfile(): Promise<SessionUser> {
     redirect("/sign-in");
   }
 
-  await db
+  const inserted = await db
     .insert(profiles)
     .values({
       id: user.id,
@@ -62,7 +62,24 @@ export async function requireProfile(): Promise<SessionUser> {
     })
     // Concurrent first requests (e.g. two tabs) must not race into a duplicate
     // key error — the row existing is exactly the desired outcome.
-    .onConflictDoNothing({ target: profiles.id });
+    .onConflictDoNothing({ target: profiles.id })
+    .returning({ id: profiles.id });
+
+  /*
+   * D13/D14 — a memory may have been shared with this address before the person
+   * had an account. Claim those invites the first time we see them, so the
+   * memory is simply waiting under "Shared with me".
+   *
+   * Only on the request that actually created the profile row: doing it on
+   * every request would be a pointless write on every page view.
+   */
+  if (inserted.length > 0) {
+    const { claimPendingInvites } = await import("@/lib/sharing");
+    const claimed = await claimPendingInvites(user.id, user.email);
+    if (claimed > 0) {
+      console.info(`[profile] claimed ${claimed} pending invite(s) for ${user.id}`);
+    }
+  }
 
   return user;
 }

@@ -125,3 +125,41 @@ export const setCoverSchema = z.object({
 export const photoIdSchema = z.object({
   photoId: z.string().uuid(),
 });
+
+// --- Sharing (FR-SHARE-*) --------------------------------------------------
+
+export const permissionSchema = z.enum(["viewer", "contributor"]);
+
+export const shareMemorySchema = z.object({
+  memoryId: z.string().uuid(),
+  email: emailSchema,
+  permission: permissionSchema,
+});
+
+export const shareIdSchema = z.object({
+  memoryId: z.string().uuid(),
+  shareId: z.string().uuid(),
+});
+
+export const updatePermissionSchema = z.object({
+  memoryId: z.string().uuid(),
+  shareId: z.string().uuid(),
+  permission: permissionSchema,
+});
+
+// --- People tagging (FR-SOC-4/5) -------------------------------------------
+
+export const personNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a name.")
+  .max(80, "Keep the name under 80 characters.");
+
+export const tagPhotoSchema = z.object({
+  photoId: z.string().uuid(),
+  name: personNameSchema,
+});
+
+export const untagSchema = z.object({
+  tagId: z.string().uuid(),
+});
