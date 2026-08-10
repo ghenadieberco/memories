@@ -1,14 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 
 import { deletePhotoAction, setCoverAction } from "../actions";
-import { PhotoTags } from "./photo-tags";
 import { PhotoViewer } from "@/components/photo-viewer";
 import type { MemoryPhoto } from "@/lib/memories";
-import type { PhotoTag } from "@/lib/people";
 
 /*
  * Thumbnail grid + uploader + viewer trigger (FR-VIEW-1/2, FR-PHOTO-1/5/6).
@@ -29,7 +26,6 @@ export function PhotoGrid({
   canSetCover,
   currentUserId,
   isOwner,
-  tagsByPhoto,
 }: {
   memoryId: string;
   photos: MemoryPhoto[];
@@ -37,7 +33,6 @@ export function PhotoGrid({
   canSetCover: boolean;
   currentUserId: string;
   isOwner: boolean;
-  tagsByPhoto: Record<string, PhotoTag[]>;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [uploads, setUploads] = useState<UploadState[]>([]);
@@ -45,7 +40,6 @@ export function PhotoGrid({
   const [actionError, setActionError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
   /*
    * Server actions returning a FormState can't be used as a bare form action
@@ -192,16 +186,6 @@ export function PhotoGrid({
                 />
               </button>
 
-              {(tagsByPhoto[photo.id]?.length ?? 0) > 0 && (
-                <span
-                  className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
-                  style={{ background: "rgba(0,0,0,.42)" }}
-                  title={tagsByPhoto[photo.id].map((tag) => tag.name).join(", ")}
-                >
-                  {tagsByPhoto[photo.id].length} tagged
-                </span>
-              )}
-
               <div className="pointer-events-none absolute top-1.5 right-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 {canSetCover && (
                   <button
@@ -243,17 +227,6 @@ export function PhotoGrid({
           index={viewerIndex}
           onIndexChange={setViewerIndex}
           onClose={() => setViewerIndex(null)}
-          renderFooter={(photo) => (
-            <PhotoTags
-              photoId={photo.id}
-              tags={tagsByPhoto[photo.id] ?? []}
-              currentUserId={currentUserId}
-              isOwner={isOwner}
-              // Tags live in a server component, so a refresh is what makes an
-              // added or removed tag appear.
-              onChanged={() => router.refresh()}
-            />
-          )}
         />
       )}
     </>

@@ -4,9 +4,9 @@ A responsive web app where a signed-in user organizes photos into dated albums (
 
 **Status:** **Phases 0 and 1 built and deployed.** Live at <https://memories.ghenadie-berco.com> (also reachable at `berco-memories.fly.dev`). Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert. Neon Postgres in AWS `us-east-1`, 8 tables migrated; public Tigris bucket `berco-memories-photos`; Neon Auth (Managed Better Auth) enabled with email sign-up + verify-at-sign-up.
 
-**Phases 0–3 are built and deployed; Phase 4 is built in reduced form.** Auth, memories, photo upload/optimization, grid and viewer are verified working by the owner. Phase 3 (sharing, "Shared with me", public `/m/[token]` links) and people tagging (FR-SOC-4/5) are deployed but **not yet exercised end-to-end**.
+**Phases 0–3 are built and deployed. Phase 4 is empty by decision.** Auth, memories, photo upload/optimization, grid and viewer are verified working by the owner. Phase 3 (sharing, "Shared with me", public `/m/[token]` links) is deployed but **not yet exercised end-to-end**.
 
-**Comments and likes are out of scope (D20)** — descoped by the product owner. Don't build FR-SOC-1/2/3. The `comments` and `likes` tables remain in the schema, unused, on purpose.
+**All social features are out of scope (D20)** — comments, likes, *and* people tagging. Don't build anything from requirements Section 3.7 (FR-SOC-1..5) without being asked. Tagging was built once and removed on request; the `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose.
 
 Two live workarounds for defects in `@neondatabase/auth@0.4.2-beta`, both documented in the plan and both to be re-tested when the SDK updates: `emailOtp.resetPassword` points at a 404 path (see `neonAuthPost`), and `auth.middleware()` redirects every non-GET request even with a valid session (see `proxy.ts` — this one silently broke every server action).
 

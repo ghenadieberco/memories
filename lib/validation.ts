@@ -146,20 +146,3 @@ export const updatePermissionSchema = z.object({
   shareId: z.string().uuid(),
   permission: permissionSchema,
 });
-
-// --- People tagging (FR-SOC-4/5) -------------------------------------------
-
-export const personNameSchema = z
-  .string()
-  .trim()
-  .min(1, "Enter a name.")
-  .max(80, "Keep the name under 80 characters.");
-
-export const tagPhotoSchema = z.object({
-  photoId: z.string().uuid(),
-  name: personNameSchema,
-});
-
-export const untagSchema = z.object({
-  tagId: z.string().uuid(),
-});

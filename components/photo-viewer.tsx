@@ -20,18 +20,11 @@ export function PhotoViewer({
   index,
   onIndexChange,
   onClose,
-  renderFooter,
 }: {
   photos: MemoryPhoto[];
   index: number;
   onIndexChange: (next: number) => void;
   onClose: () => void;
-  /**
-   * Optional per-photo footer (used for people tags). Left undefined by the
-   * public guest gallery so a guest gets no tagging affordance at all —
-   * absent, not disabled (FR-SHARE-9).
-   */
-  renderFooter?: (photo: MemoryPhoto) => React.ReactNode;
 }) {
   const atFirst = index <= 0;
   const atLast = index >= photos.length - 1;
@@ -123,16 +116,6 @@ export function PhotoViewer({
       <p className="font-display text-[15px] font-semibold text-white">
         {index + 1} / {photos.length}
       </p>
-
-      {renderFooter && (
-        <div
-          className="w-full max-w-[760px]"
-          // Clicks inside the footer must not reach the backdrop dismiss handler.
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          {renderFooter(photo)}
-        </div>
-      )}
     </div>
   );
 }
