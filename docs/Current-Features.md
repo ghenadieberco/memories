@@ -109,6 +109,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 2. **Copy the link** to the clipboard in one click.
 3. **Regenerate the link** if it's gone somewhere you didn't intend — the old one dies instantly.
 4. **What a visitor sees:** the memory's title, its date, the grid, the fullscreen viewer, and the download controls. Nothing else — not your other memories, not your account, and no way to change anything.
+5. **The Memories wordmark takes a visitor to the sign-in screen**, so someone who likes what they're looking at can get an account of their own.
 
 ## 10. Letting guests add photos and videos
 

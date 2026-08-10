@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { GuestUploader } from "./guest-uploader";
@@ -64,7 +65,13 @@ export default async function PublicMemoryPage({
       <main className="flex-1 px-[22px] py-[26px]">
       <div className="mx-auto max-w-[1100px]">
         <header className="mb-5 flex items-center">
-          <Wordmark size="nav" />
+          {/*
+            A guest has no session, so the wordmark points at sign-in rather
+            than /memories — which would only bounce them here anyway.
+          */}
+          <Link href="/sign-in" aria-label="Sign in to Memories">
+            <Wordmark size="nav" />
+          </Link>
         </header>
 
         <div className="glass mb-5 rounded-2xl p-[22px]">
