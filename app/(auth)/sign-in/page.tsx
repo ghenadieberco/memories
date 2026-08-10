@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { SignInForm } from "./sign-in-form";
+import { getSessionUser } from "@/lib/profile";
 
 export const metadata = { title: "Sign in · Memories" };
 
@@ -8,6 +10,16 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
   const params = await searchParams;
   const justReset = params.reset === "1";
   const deactivated = params.deactivated === "1";
+
+  /*
+   * FR-AUTH-10 — someone who already has a session has nothing to sign in to,
+   * so send them where signing in would have sent them.
+   *
+   * Not when `deactivated=1`: that redirect comes from `requireProfile()` for an
+   * account whose Neon Auth session is still valid (D22), so bouncing it back to
+   * /memories would ping-pong instead of showing the explanation.
+   */
+  if (!deactivated && (await getSessionUser())) redirect("/memories");
 
   return (
     <>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { Calendar, Pencil, RotateCcw, Trash2 } from "lucide-react";
 
 import { clearCoverAction, deleteMemoryAction, updateMemoryAction } from "../actions";
@@ -24,9 +24,10 @@ export function MemoryActions({
 }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [state, formAction] = useActionState(updateMemoryAction, initial);
   const [coverError, setCoverError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  const stopEditing = useCallback(() => setEditing(false), []);
 
   // Same reason as the cover button in photo-grid: a FormState-returning action
   // can't be a bare form action, and its error must not be silently dropped.
@@ -73,30 +74,14 @@ export function MemoryActions({
         <Modal
           title="Edit memory"
           icon={<Calendar size={17} className="text-purple" aria-hidden="true" />}
-          onClose={() => setEditing(false)}
+          onClose={stopEditing}
         >
-          <form action={formAction} className="flex flex-col gap-3.5">
-            <FormMessage state={state} />
-            <input type="hidden" name="memoryId" value={memoryId} />
-            <Field
-              label="Title"
-              name="title"
-              defaultValue={title}
-              required
-              error={state.fieldErrors?.title}
-            />
-            <Field
-              label="Date"
-              name="memoryDate"
-              type="date"
-              defaultValue={memoryDate}
-              required
-              error={state.fieldErrors?.memoryDate}
-            />
-            <SubmitButton pendingLabel="Saving changes…" className="big full mt-1">
-              Save changes
-            </SubmitButton>
-          </form>
+          <EditMemoryForm
+            memoryId={memoryId}
+            title={title}
+            memoryDate={memoryDate}
+            onSaved={stopEditing}
+          />
         </Modal>
       )}
 
@@ -128,5 +113,55 @@ export function MemoryActions({
         </Modal>
       )}
     </div>
+  );
+}
+
+/**
+ * FR-MEM-6 — the edit form. It lives in its own component, mounted only while
+ * the dialog is open, for two reasons: a successful save closes the dialog, and
+ * the next open then starts from a clean FormState rather than greeting the
+ * user with the last save's notice. Errors keep the dialog open so they stay
+ * readable next to the fields they belong to.
+ */
+function EditMemoryForm({
+  memoryId,
+  title,
+  memoryDate,
+  onSaved,
+}: {
+  memoryId: string;
+  title: string;
+  memoryDate: string;
+  onSaved: () => void;
+}) {
+  const [state, formAction] = useActionState(updateMemoryAction, initial);
+
+  useEffect(() => {
+    if (state.notice) onSaved();
+  }, [state, onSaved]);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3.5">
+      <FormMessage state={state} />
+      <input type="hidden" name="memoryId" value={memoryId} />
+      <Field
+        label="Title"
+        name="title"
+        defaultValue={title}
+        required
+        error={state.fieldErrors?.title}
+      />
+      <Field
+        label="Date"
+        name="memoryDate"
+        type="date"
+        defaultValue={memoryDate}
+        required
+        error={state.fieldErrors?.memoryDate}
+      />
+      <SubmitButton pendingLabel="Saving changes…" className="big full mt-1">
+        Save changes
+      </SubmitButton>
+    </form>
   );
 }

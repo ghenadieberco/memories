@@ -26,7 +26,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 
 1. **Sign up** with a name, email address, and password.
 2. **Verify your email** with a 6-digit code sent to your inbox — you enter the code in the app rather than clicking a link.
-3. **Sign in** and **sign out**.
+3. **Sign in** and **sign out**. If you open the sign-in screen while you're already signed in, you go straight to your memories.
 4. **Password rules are enforced as you type**: at least 8 characters with at least one letter and one number, with a live strength meter.
 5. **Forgot your password?** Request a reset, get a 6-digit code by email, and set a new password.
 6. If someone shares a memory with an email address that hasn't registered yet, **the invitation is waiting for them the moment they sign up**.
@@ -37,7 +37,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 2. Every memory is labelled **`Title - (Date)`** — for example, `Beach Trip - (14 Jul 2026)`.
 3. **The memories list** shows all of your memories as cards with a cover image and a count of what's inside, **newest date first**.
 4. **Open a memory** to see what's in it.
-5. **Edit** a memory's title or date at any time.
+5. **Edit** a memory's title or date at any time. The dialog closes as soon as the change is saved; if something's wrong it stays open and tells you what.
 6. **Delete** a memory, with a confirmation step. Everything in it, and every stored file, goes with it.
 7. **Choose a cover image** for a memory by picking any photo already inside it, and **reset the cover** to go back to the automatic choice.
 8. If you haven't chosen a cover, one is picked for you; an empty memory shows a placeholder.
