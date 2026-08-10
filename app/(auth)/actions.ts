@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth, neonAuthPost } from "@/lib/auth/server";
@@ -330,8 +331,38 @@ export async function resetPasswordAction(
   redirect("/sign-in?reset=1");
 }
 
+/**
+ * FR-AUTH-5 — sign out, invalidating the session.
+ *
+ * Belt and braces, because the first version silently did neither: it called
+ * `auth.signOut()`, ignored the result, and redirected. Sessions kept
+ * accumulating in `neon_auth.session` and the browser stayed signed in.
+ *
+ * So: revoke server-side AND clear the cookie locally. The cookie is matched by
+ * substring rather than an exact name — the SDK owns that name and could prefix
+ * it differently, and a sign-out that half-works is worse than one that errors.
+ */
 export async function signOutAction(): Promise<void> {
-  await auth.signOut();
+  try {
+    const result = await auth.signOut();
+    const error = (result as { error?: unknown } | undefined)?.error;
+    if (error) {
+      const { code, message } = errorParts(error);
+      console.error(
+        `[auth:sign-out] code=${code || "?"} message=${message || "?"} raw=${describeError(error)}`,
+      );
+    }
+  } catch (thrown) {
+    console.error(`[auth:sign-out] threw ${describeError(thrown)}`);
+  }
+
+  const cookieStore = await cookies();
+  for (const cookie of cookieStore.getAll()) {
+    if (/session_token|session-token/i.test(cookie.name)) {
+      cookieStore.delete(cookie.name);
+    }
+  }
+
   redirect("/sign-in");
 }
 

@@ -88,3 +88,40 @@ export function toFormState(error: z.ZodError): FormState {
   }
   return { fieldErrors };
 }
+
+// --- Memories (FR-MEM-*) ---------------------------------------------------
+
+export const memoryTitleSchema = z
+  .string()
+  .trim()
+  .min(1, "Give this memory a title.")
+  .max(120, "Keep the title under 120 characters.");
+
+/** `date` column format. D2: user-set, defaults to today, editable. */
+export const memoryDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date.");
+
+export const createMemorySchema = z.object({
+  title: memoryTitleSchema,
+  memoryDate: memoryDateSchema,
+});
+
+export const updateMemorySchema = z.object({
+  memoryId: z.string().uuid(),
+  title: memoryTitleSchema,
+  memoryDate: memoryDateSchema,
+});
+
+export const memoryIdSchema = z.object({
+  memoryId: z.string().uuid(),
+});
+
+export const setCoverSchema = z.object({
+  memoryId: z.string().uuid(),
+  photoId: z.string().uuid(),
+});
+
+export const photoIdSchema = z.object({
+  photoId: z.string().uuid(),
+});
