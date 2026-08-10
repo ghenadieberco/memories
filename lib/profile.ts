@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
 import { profiles } from "@/db/schema";
 import { auth } from "@/lib/auth/server";
@@ -42,9 +43,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export async function requireProfile(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) {
-    // proxy.ts should have redirected already; this is the backstop for any
-    // route that isn't in the matcher.
-    throw new Error("Not authenticated");
+    /*
+     * Redirect rather than throw. The previous version threw a bare Error,
+     * which in a server action is an unhandled exception — the browser shows
+     * "This page couldn't load" and nothing is logged, which is indistinguishable
+     * from a real bug. Sending an unauthenticated caller to sign-in is both the
+     * correct behaviour and a legible one.
+     */
+    redirect("/sign-in");
   }
 
   await db

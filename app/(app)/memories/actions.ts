@@ -26,6 +26,20 @@ import {
  * act. No shortcuts, no queries by id alone.
  */
 
+/**
+ * `redirect()` and `notFound()` signal control flow by throwing. Catching those
+ * would break navigation, so they must always be rethrown.
+ */
+function isFrameworkSignal(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return (
+    typeof digest === "string" &&
+    (digest.startsWith("NEXT_REDIRECT") ||
+      digest === "NEXT_NOT_FOUND" ||
+      digest.startsWith("NEXT_HTTP_ERROR_FALLBACK"))
+  );
+}
+
 /** Uniform handling so an authorisation failure never leaks that a row exists. */
 function denied(error: unknown, fallback: string): FormState {
   if (error instanceof AccessDeniedError) {
@@ -40,16 +54,16 @@ export async function createMemoryAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const user = await requireProfile();
-
-  const parsed = createMemorySchema.safeParse({
-    title: formData.get("title"),
-    memoryDate: formData.get("memoryDate"),
-  });
-  if (!parsed.success) return toFormState(parsed.error);
-
   let newId: string;
   try {
+    const user = await requireProfile();
+
+    const parsed = createMemorySchema.safeParse({
+      title: formData.get("title"),
+      memoryDate: formData.get("memoryDate"),
+    });
+    if (!parsed.success) return toFormState(parsed.error);
+
     const [created] = await db
       .insert(memories)
       .values({
@@ -60,6 +74,7 @@ export async function createMemoryAction(
       .returning({ id: memories.id });
     newId = created.id;
   } catch (error) {
+    if (isFrameworkSignal(error)) throw error;
     return denied(error, "We couldn't create that memory.");
   }
 
