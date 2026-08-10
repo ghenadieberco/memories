@@ -50,6 +50,23 @@ Build **one phase at a time**. Each phase has scope, tasks, and acceptance crite
 > Constraints that matter here: **AWS regions only** (we are on AWS `us-east-1` ✓)
 > and **incompatible with IP Allow / Private Networking** (we use neither).
 
+> ⚠️ **Known SDK defect #2 — `auth.middleware()` blocks every non-GET request.**
+> With a valid session cookie, the SDK's middleware redirects ALL non-GET requests
+> on a matched path to the login URL:
+>
+> ```
+> GET  /memories -> 200        POST /memories -> 307 /sign-in
+> GET  /settings -> 200        POST /settings -> 307 /sign-in
+> ```
+>
+> A Next server action is a POST to the current page's URL, so this silently broke
+> **every mutation in the authenticated area** — create/edit/delete memory, set
+> cover, delete photo, and both settings forms. Nothing reached application code,
+> so there were no logs and no database writes to diagnose from. `proxy.ts` now
+> runs the auth middleware for GET/HEAD only; non-GET requests are authorised by
+> `requireProfile()` + `lib/access.ts`, which is where the plan (§2, §6) puts the
+> real gate anyway. Re-test when the SDK updates.
+
 > ⚠️ **Known SDK defect — `@neondatabase/auth@0.4.2-beta`.** `emailOtp.resetPassword`
 > is declared at `email-otp/passcode`, which returns **404**; the working endpoint is
 > `email-otp/reset-password`. The 404 surfaces as `code: user_not_found`, which reads

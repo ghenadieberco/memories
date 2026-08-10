@@ -25,6 +25,7 @@ export type SessionUser = {
 export async function getSessionUser(): Promise<SessionUser | null> {
   const { data } = await auth.getSession();
   const user = data?.user;
+
   if (!user?.id) return null;
 
   return {
