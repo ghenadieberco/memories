@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { changePasswordAction, updateNameAction } from "@/app/(auth)/actions";
 import { Field, FormMessage, SubmitButton } from "@/components/form";
+import { PasswordField } from "@/components/password-field";
 import type { FormState } from "@/lib/validation";
 
 const initial: FormState = {};
@@ -45,13 +46,9 @@ export function ChangePasswordForm() {
         required
         error={state.fieldErrors?.currentPassword}
       />
-      <Field
+      <PasswordField
         label="New password"
         name="newPassword"
-        type="password"
-        autoComplete="new-password"
-        required
-        hint="At least 8 characters, with a letter and a number."
         error={state.fieldErrors?.newPassword}
       />
       <div>

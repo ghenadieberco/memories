@@ -27,27 +27,127 @@ import {
  */
 
 /**
- * Neon Auth returns errors as `{ error }` rather than throwing. Turn one into a
- * message safe to show a user: never echo raw upstream text, which can leak
- * whether an account exists.
+ * Configuration and transport failures. These are OUR problem, never the
+ * user's, and must never be reported as a credential error.
+ *
+ * This list exists because of a real incident: Neon Auth returned
+ * `INVALID_ORIGIN` (the app's origin was missing from its trusted domains) and
+ * an over-broad `/invalid/` match rewrote it as "That email and password don't
+ * match." Every auth call was failing while the message sent everyone hunting
+ * for a password problem. Match on `code` first — message text is not an API.
  */
-function authError(error: unknown, fallback: string): string {
-  const message =
-    typeof error === "object" && error !== null && "message" in error
-      ? String((error as { message: unknown }).message)
-      : "";
+const CONFIG_ERROR_CODES = new Set([
+  "INVALID_ORIGIN",
+  "MISSING_ORIGIN",
+  "NETWORK_ERROR",
+  "NETWORK_DNS",
+  "NETWORK_REFUSED",
+  "NETWORK_TIMEOUT",
+  "NETWORK_TLS",
+  "NETWORK_RESET",
+  "NETWORK_ABORT",
+]);
 
-  // Pass through only messages we know are safe and useful.
-  if (/invalid|incorrect|credential/i.test(message)) {
-    return "That email and password don't match.";
+/**
+ * Pull `code` and `message` out of a Neon Auth error.
+ *
+ * Deliberately defensive about shape. The first version of this read only
+ * `error.message` at the top level; the SDK nests it, so nothing ever matched
+ * and EVERY failure fell through to the caller's fallback text. That made an
+ * `INVALID_ORIGIN` config error read as "That email and password don't match"
+ * on sign-in and "That code isn't right" on password reset — two different
+ * wrong diagnoses for one cause. Check the plausible shapes, and log the raw
+ * object so the next unknown shape is visible instead of silent.
+ */
+function errorParts(error: unknown): { code: string; message: string } {
+  if (typeof error !== "object" || error === null) return { code: "", message: "" };
+
+  const seen = new Set<unknown>();
+  let code = "";
+  let message = "";
+
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 3 || typeof value !== "object" || value === null) return;
+    if (seen.has(value)) return;
+    seen.add(value);
+
+    const record = value as Record<string, unknown>;
+    if (!code && typeof record.code === "string") code = record.code;
+    if (!message && typeof record.message === "string") message = record.message;
+    if (!message && typeof record.statusText === "string") {
+      message = record.statusText;
+    }
+
+    for (const key of ["error", "body", "data", "cause", "response"]) {
+      if (record[key]) visit(record[key], depth + 1);
+    }
+  };
+
+  visit(error, 0);
+  return { code, message };
+}
+
+/** Best-effort serialisation for logs; never sent to the browser. */
+function describeError(error: unknown): string {
+  try {
+    return JSON.stringify(error, Object.getOwnPropertyNames(Object(error))).slice(
+      0,
+      600,
+    );
+  } catch {
+    return String(error);
   }
-  if (/exists|already/i.test(message)) {
-    return "An account with that email already exists.";
+}
+
+/**
+ * Turn a Neon Auth error into a message safe to show a user.
+ *
+ * Always logs the real code and message server-side: swallowing them entirely
+ * is what made the INVALID_ORIGIN incident above so hard to diagnose. Never
+ * echoes raw upstream text to the browser, which could leak whether an account
+ * exists.
+ */
+function authError(error: unknown, fallback: string, context: string): string {
+  const { code, message } = errorParts(error);
+  console.error(
+    `[auth:${context}] code=${code || "?"} message=${message || "?"} raw=${describeError(error)}`,
+  );
+
+  if (CONFIG_ERROR_CODES.has(code)) {
+    return "Sign-in is temporarily unavailable. This is a problem on our side, not with your account.";
+  }
+
+  switch (code) {
+    case "USER_ALREADY_EXISTS":
+      return "An account with that email already exists. Sign in instead.";
+    case "INVALID_EMAIL_OR_PASSWORD":
+      return "That email and password don't match.";
+    case "EMAIL_NOT_VERIFIED":
+      return "Confirm your email first — we sent you a code.";
+    case "INVALID_OTP":
+    case "INVALID_TOKEN":
+      return "That code isn't right. Check and retry.";
+    case "OTP_EXPIRED":
+    case "TOKEN_EXPIRED":
+      return "That code has expired. Send a new one.";
+    case "PASSWORD_TOO_SHORT":
+      return "Use at least 8 characters.";
+    case "TOO_MANY_REQUESTS":
+      return "Too many attempts. Wait a moment and try again.";
+    default:
+      break;
+  }
+
+  // Message-text fallbacks, deliberately narrow. Anything ambiguous — notably
+  // the bare word "invalid" — falls through to the caller's own wording so a
+  // sign-up failure can never be described as a sign-in failure.
+  if (/already exists/i.test(message)) {
+    return "An account with that email already exists. Sign in instead.";
   }
   if (/expired/i.test(message)) {
     return "That code has expired. Send a new one.";
   }
-  if (/too many|rate/i.test(message)) {
+  if (/too many|rate limit/i.test(message)) {
     return "Too many attempts. Wait a moment and try again.";
   }
   return fallback;
@@ -68,7 +168,7 @@ export async function signUpAction(
 
   const { error } = await auth.signUp.email({ email, password, name });
   if (error) {
-    return { error: authError(error, "We couldn't create your account.") };
+    return { error: authError(error, "We couldn't create your account.", "sign-up") };
   }
 
   // "Verify at Sign-up" is on, so the account exists but is unverified (D4).
@@ -96,19 +196,17 @@ export async function signInAction(
   const { error } = await auth.signIn.email({ email, password });
   if (error) {
     // An unverified account can't sign in — route to verification rather than
-    // leaving the user stuck on a generic failure.
-    const message =
-      typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message: unknown }).message)
-        : "";
-    if (/verif/i.test(message)) {
+    // leaving the user stuck on a generic failure. Keyed on the structured code
+    // where possible; the text check is only a fallback.
+    const { code, message } = errorParts(error);
+    if (code === "EMAIL_NOT_VERIFIED" || /not verified/i.test(message)) {
       await auth.emailOtp.sendVerificationOtp({
         email,
         type: "email-verification",
       });
       redirect(`/verify?email=${encodeURIComponent(email)}&unverified=1`);
     }
-    return { error: authError(error, "That email and password don't match.") };
+    return { error: authError(error, "That email and password don't match.", "sign-in") };
   }
 
   // FR-AUTH-10: straight to Memories.
@@ -129,7 +227,7 @@ export async function verifyEmailAction(
 
   const { error } = await auth.emailOtp.verifyEmail({ email, otp });
   if (error) {
-    return { error: authError(error, "That code isn't right. Check and retry.") };
+    return { error: authError(error, "That code isn't right. Check and retry.", "otp") };
   }
 
   redirect("/memories");
@@ -187,7 +285,7 @@ export async function resetPasswordAction(
 
   const { error } = await auth.emailOtp.resetPassword({ email, otp, password });
   if (error) {
-    return { error: authError(error, "That code isn't right. Check and retry.") };
+    return { error: authError(error, "That code isn't right. Check and retry.", "otp") };
   }
 
   redirect("/sign-in?reset=1");
@@ -209,7 +307,7 @@ export async function updateNameAction(
 
   const { error } = await auth.updateUser({ name: parsed.data.name });
   if (error) {
-    return { error: authError(error, "We couldn't update your name.") };
+    return { error: authError(error, "We couldn't update your name.", "update-name") };
   }
 
   // profiles.display_name mirrors the auth record; keep them in step.
@@ -235,7 +333,7 @@ export async function changePasswordAction(
   });
   if (error) {
     return {
-      error: authError(error, "Your current password isn't right."),
+      error: authError(error, "Your current password isn't right.", "change-password"),
     };
   }
 

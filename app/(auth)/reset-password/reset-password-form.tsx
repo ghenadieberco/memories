@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { resetPasswordAction } from "../actions";
 import { Field, FormMessage, SubmitButton } from "@/components/form";
+import { PasswordField } from "@/components/password-field";
 import type { FormState } from "@/lib/validation";
 
 const initial: FormState = {};
@@ -27,14 +28,9 @@ export function ResetPasswordForm({ email }: { email: string }) {
         required
         error={state.fieldErrors?.otp}
       />
-      <Field
+      <PasswordField
         label="New password"
         name="password"
-        type="password"
-        autoComplete="new-password"
-        placeholder="At least 8 characters"
-        required
-        hint="At least 8 characters, with a letter and a number."
         error={state.fieldErrors?.password}
       />
 
