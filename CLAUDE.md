@@ -2,7 +2,9 @@
 
 A responsive web app where a signed-in user organizes photos into dated albums ("memories"), browses them as a thumbnail grid or in a fullscreen viewer, shares them with other users or via public view-only links, and comments/likes/tags people on photos.
 
-**Status:** **Phase 0 (foundation) built locally; not yet deployed.** Next 16 + React 19 + Tailwind v4 + shadcn are scaffolded, the full Drizzle schema and first migration exist, and `Dockerfile`/`fly.toml` are verified (image builds, serves, and runs the release command). What remains in Phase 0 is entirely account setup — Neon project, Tigris bucket, `fly deploy` — which needs the owner's credentials. Phase 1 (auth) has not been started.
+**Status:** **Phases 0 and 1 built and deployed.** Live at <https://memories.ghenadie-berco.com> (also reachable at `berco-memories.fly.dev`). Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert. Neon Postgres in AWS `us-east-1`, 8 tables migrated; public Tigris bucket `berco-memories-photos`; Neon Auth (Managed Better Auth) enabled with email sign-up + verify-at-sign-up.
+
+Phase 1 ships sign-in / sign-up / verify / forgot-password / reset-password / settings and an empty Memories page, all hand-built to the style guide (D16). **Not yet confirmed end-to-end by a human registration** — that needs a real inbox. Phase 2 (memories & photos) has not been started.
 
 The landing page at [app/page.tsx](app/page.tsx) is a temporary Phase 0 status board that runs the Neon + Tigris round-trip checks; Phase 1 replaces it with the real sign-in screen. `/api/health?deep=1` writes to the live bucket — remove or protect it during hardening.
 

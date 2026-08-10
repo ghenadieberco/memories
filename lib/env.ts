@@ -30,6 +30,15 @@ const appSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
 });
 
+const authSchema = z.object({
+  /** Neon console -> Auth -> Configuration. */
+  NEON_AUTH_BASE_URL: z.string().url(),
+  /** Self-generated. Neon Auth signs session cookies with HMAC-SHA256. */
+  NEON_AUTH_COOKIE_SECRET: z
+    .string()
+    .min(32, "must be at least 32 characters (openssl rand -base64 32)"),
+});
+
 function loader<T extends z.ZodType>(label: string, schema: T) {
   let cached: z.infer<T> | null = null;
 
@@ -55,3 +64,4 @@ function loader<T extends z.ZodType>(label: string, schema: T) {
 export const dbEnv = loader("database", dbSchema);
 export const storageEnv = loader("object storage", storageSchema);
 export const appEnv = loader("app", appSchema);
+export const authEnv = loader("Neon Auth", authSchema);

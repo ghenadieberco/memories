@@ -135,6 +135,129 @@
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow);
   }
+
+  /* --- Buttons — style guide §6 ------------------------------------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 11px 18px;
+    border-radius: 13px;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition:
+      box-shadow 0.16s ease,
+      background 0.16s ease,
+      transform 0.12s ease;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  .btn.sm {
+    padding: 9px 13px;
+  }
+  .btn.big {
+    padding: 14px 18px;
+  }
+  .btn.full {
+    width: 100%;
+  }
+
+  /* Primary fill is purple→purple-d. The purple→orange gradient is reserved
+     for the toggle and avatar only (style guide §2, §11). */
+  .btn.primary {
+    background: linear-gradient(135deg, var(--purple), var(--purple-d));
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(122, 47, 242, 0.32);
+  }
+  .btn.primary:hover:not(:disabled) {
+    box-shadow: 0 10px 26px rgba(122, 47, 242, 0.42);
+  }
+
+  .btn.ghost {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: var(--glass-border);
+    color: var(--purple);
+  }
+  .btn.ghost:hover:not(:disabled) {
+    background: #fff;
+  }
+
+  .btn.danger {
+    background: rgba(255, 138, 61, 0.14);
+    color: var(--orange-d);
+  }
+  .btn.danger:hover:not(:disabled) {
+    background: rgba(255, 138, 61, 0.22);
+  }
+
+  /* --- Inputs & labels — style guide §6 ----------------------------- */
+
+  .lbl {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--muted-ink);
+    margin-bottom: 6px;
+  }
+
+  .field {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(122, 47, 242, 0.14);
+    border-radius: 13px;
+    padding: 12px 14px;
+    font-size: 14.5px;
+    color: var(--ink);
+    /* Long values (emails, URLs) must truncate rather than blow out the
+       panel — style guide §11. */
+    min-width: 0;
+    transition:
+      border-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+  .field::placeholder {
+    color: #b3a8c4;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--purple-l);
+    box-shadow: 0 0 0 3px rgba(122, 47, 242, 0.13);
+  }
+  .field:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* --- Feedback ------------------------------------------------------ */
+
+  .form-error {
+    background: rgba(255, 138, 61, 0.14);
+    color: var(--orange-d);
+    border-radius: 13px;
+    padding: 10px 13px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .form-note {
+    background: rgba(122, 47, 242, 0.09);
+    color: var(--purple-d);
+    border-radius: 13px;
+    padding: 10px 13px;
+    font-size: 13px;
+    font-weight: 600;
+  }
 }
 
 /* ------------------------------------------------------------------ *

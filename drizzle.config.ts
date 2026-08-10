@@ -15,6 +15,9 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL ?? "",
   },
+  // Only ever manage `public`. Neon Auth owns the `neon_auth` schema; without
+  // this, a future generate/push could propose dropping its tables.
+  schemaFilter: ["public"],
   strict: true,
   verbose: true,
 });

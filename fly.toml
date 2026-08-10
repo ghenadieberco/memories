@@ -1,6 +1,8 @@
 # Memories — Fly.io app configuration (implementation plan §11.5).
 
-app = "memories"
+# `memories` and `memories-app` were both taken on Fly's global namespace.
+# This is only the *.fly.dev subdomain — a custom domain replaces it in Phase 5.
+app = "berco-memories"
 
 # Users are in New York. Create the Neon project in AWS us-east-1 (N. Virginia)
 # to match.

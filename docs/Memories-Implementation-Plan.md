@@ -42,6 +42,14 @@ Build **one phase at a time**. Each phase has scope, tasks, and acceptance crite
 
 > **Storage decision (Tigris vs R2).** Default to **Tigris** for one-vendor simplicity with Fly (`fly storage create`, endpoint `https://fly.storage.tigris.dev`). Choose **R2** if you want free egress on this read-heavy photo app. Switching between them is one endpoint + credentials change — the pipeline code is identical.
 
+> **Phase 1 prerequisites, verified against Neon's docs during Phase 0:**
+> packages are `@neondatabase/auth` (server) + `@neondatabase/auth-ui`, with
+> `@neondatabase/neon-js/auth` on the client. It is built on Better Auth 1.4.18,
+> runs as a managed REST API, and stores users/sessions in the **`neon_auth`**
+> schema of your own database (so `profiles.id` can FK to `neon_auth.user`).
+> Constraints that matter here: **AWS regions only** (we are on AWS `us-east-1` ✓)
+> and **incompatible with IP Allow / Private Networking** (we use neither).
+
 > **Auth note.** Neon Auth (Managed Better Auth) is in **Beta**. It's the lowest-effort path and keeps auth data in your Neon DB. If you need production-hardened guarantees now, the drop-in alternatives are **self-hosted Better Auth** (same library) or **Clerk** — both also work with Neon and Fly. This plan assumes Neon Auth; swapping to self-hosted Better Auth changes only Phase 1 wiring.
 
 ---
@@ -118,12 +126,13 @@ NEXT_PUBLIC_APP_URL=
 # Neon database (pooled connection string from the Neon console)
 DATABASE_URL=
 
-# Neon Auth (from Neon console → Auth). If self-hosting Better Auth instead:
-BETTER_AUTH_SECRET=
-BETTER_AUTH_URL=
-NEON_AUTH_PROJECT_ID=
-NEON_AUTH_PUBLISHABLE_KEY=
-NEON_AUTH_SECRET_KEY=
+# Neon Auth (Managed Better Auth) — corrected in Phase 0 against Neon's current
+# docs. The previously listed NEON_AUTH_PROJECT_ID / _PUBLISHABLE_KEY /
+# _SECRET_KEY belonged to the retired Stack-Auth-based Neon Auth and do not
+# exist. Only two variables are needed, and only the first comes from the console
+# (Auth → Enable Auth → Configuration):
+NEON_AUTH_BASE_URL=          # https://ep-xxx.neonauth.us-east-1.aws.neon.tech/<dbname>/auth
+NEON_AUTH_COOKIE_SECRET=     # self-generated, 32+ chars: openssl rand -base64 32
 
 # Object storage (Tigris default; identical shape for R2)
 S3_ENDPOINT=https://fly.storage.tigris.dev   # R2: https://<account>.r2.cloudflarestorage.com
@@ -326,6 +335,8 @@ Comments and likes on photos (D9), manual people-tagging with removal/self-remov
 - **D11 Cover fallback:** if a chosen cover photo is deleted, revert to `auto`.
 - **D12 Infrastructure:** **Fly.io** (host) + **Neon** (Postgres + Neon Auth) + **Tigris** (photos; R2 as the free-egress alternative) + **Resend** (email); single Fly region near the users; Drizzle for migrations. *(See Section 1 for the Neon Auth Beta note.)*
 - **D13 Invites to non-users:** a memory may be shared with an email address that has **no account yet**. `memory_shares.user_id` is nullable and `invited_email` carries the address until sign-up claims it. Without this, FR-SHARE-1 ("share by email") only works for people who already registered — the wrong default for a family photo app, and a data migration to fix later.
+- **D15 Email verification method:** **numeric verification codes**, not links, for v1. Neon Auth's built-in shared sender (`auth@mail.myneon.app`) supports codes; **links require a custom email provider**, which requires a verified domain. Codes let Phase 1 complete with no domain and no Resend dependency. *(Narrows FR-AUTH-8, which says "link" — the guarantee it exists for, proving control of the address, is unchanged. Switch to links in Phase 5 when the domain and branded sender land.)*
+- **D16 Auth UI:** auth screens are **hand-built** against the Neon Auth API rather than using `@neondatabase/auth-ui`. The style guide is authoritative on appearance and highly specific (glass panels, ambient orbs, Fredoka wordmark), and the sign-in screen is the product's first impression. Costs Phase 1 time; avoids fighting a third-party component's look.
 - **D14 Share acceptance:** sharing with an **existing** user writes `status = 'accepted'` directly; the email is a notification, not a gate (this is what makes Phase 3's "a second account sees it under Shared with me" true). Only **D13 email invites** start `pending`, flipping to `accepted` when the address is claimed at sign-up. The access helper grants on `'accepted'` alone. *(Resolves the gap where nothing ever left the schema's `'pending'` default.)*
 
 ---
@@ -432,8 +443,7 @@ fly launch --no-deploy          # generates the app; keep the fly.toml above
 
 fly secrets set \
   DATABASE_URL="..." \
-  BETTER_AUTH_SECRET="..." BETTER_AUTH_URL="https://memories.fly.dev" \
-  NEON_AUTH_PROJECT_ID="..." NEON_AUTH_PUBLISHABLE_KEY="..." NEON_AUTH_SECRET_KEY="..." \
+  NEON_AUTH_BASE_URL="..." NEON_AUTH_COOKIE_SECRET="..." \
   S3_ENDPOINT="https://fly.storage.tigris.dev" S3_REGION="auto" \
   S3_ACCESS_KEY_ID="..." S3_SECRET_ACCESS_KEY="..." S3_BUCKET="..." S3_PUBLIC_URL="..." \
   RESEND_API_KEY="..." NEXT_PUBLIC_APP_URL="https://memories.fly.dev"
@@ -450,7 +460,7 @@ Verify: `fly logs`, open the `*.fly.dev` URL, register a test user, upload a pho
 ```bash
 fly certs add app.yourdomain.com   # then add the shown DNS records at your registrar
 ```
-Then update `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, and Neon Auth's **trusted domains / redirect URLs** to the custom domain.
+Then update `NEXT_PUBLIC_APP_URL` and Neon Auth's **trusted domains / redirect URLs** to the custom domain.
 
 ### 11.9 Scaling & operations
 - Region/scale: `fly scale count 1` (bump when needed); keep `min_machines_running = 1` so sessions and image caching are warm.
