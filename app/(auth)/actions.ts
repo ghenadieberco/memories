@@ -227,7 +227,13 @@ export async function verifyEmailAction(
 
   const { error } = await auth.emailOtp.verifyEmail({ email, otp });
   if (error) {
-    return { error: authError(error, "That code isn't right. Check and retry.", "otp") };
+    return {
+      error: authError(
+        error,
+        "That confirmation code isn't right. Check it, or send a new one.",
+        "verify-email",
+      ),
+    };
   }
 
   redirect("/memories");
@@ -261,11 +267,30 @@ export async function forgotPasswordAction(
 
   const { email } = parsed.data;
 
-  // Ignore the result deliberately: revealing whether an address has an account
-  // turns this form into an account-enumeration oracle (NFR-SEC).
-  await auth.emailOtp
-    .sendVerificationOtp({ email, type: "forget-password" })
-    .catch(() => undefined);
+  /*
+   * The user-visible outcome is identical whether or not the address has an
+   * account — telling them would turn this form into an account-enumeration
+   * oracle (NFR-SEC).
+   *
+   * But silent to the USER is not the same as silent to US. An earlier version
+   * swallowed everything, so when the send was failing with INVALID_ORIGIN the
+   * app still cheerfully redirected to "enter your code" for a code that was
+   * never sent. Always log the failure.
+   */
+  try {
+    const { error } = await auth.emailOtp.sendVerificationOtp({
+      email,
+      type: "forget-password",
+    });
+    if (error) {
+      const { code, message } = errorParts(error);
+      console.error(
+        `[auth:forgot-password] send failed code=${code || "?"} message=${message || "?"} raw=${describeError(error)}`,
+      );
+    }
+  } catch (thrown) {
+    console.error(`[auth:forgot-password] send threw ${describeError(thrown)}`);
+  }
 
   redirect(`/reset-password?email=${encodeURIComponent(email)}`);
 }
@@ -285,7 +310,13 @@ export async function resetPasswordAction(
 
   const { error } = await auth.emailOtp.resetPassword({ email, otp, password });
   if (error) {
-    return { error: authError(error, "That code isn't right. Check and retry.", "otp") };
+    return {
+      error: authError(
+        error,
+        "That reset code isn't right. Request a new one and use the newest email.",
+        "reset-password",
+      ),
+    };
   }
 
   redirect("/sign-in?reset=1");
