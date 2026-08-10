@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { memories, photos } from "@/db/schema";
 import { AccessDeniedError, assertCanDeletePhoto, assertOwnsMemory } from "@/lib/access";
+import { MaintenanceModeError, assertWritable } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { requireProfile } from "@/lib/profile";
 import { deleteObjects } from "@/lib/storage";
@@ -43,6 +44,9 @@ function isFrameworkSignal(error: unknown): boolean {
 
 /** Uniform handling so an authorisation failure never leaks that a row exists. */
 function denied(error: unknown, fallback: string): FormState {
+  if (error instanceof MaintenanceModeError) {
+    return { error: "The app is in maintenance mode. Changes are paused." };
+  }
   if (error instanceof AccessDeniedError) {
     return { error: "That memory isn't available." };
   }
@@ -58,6 +62,8 @@ export async function createMemoryAction(
   let newId: string;
   try {
     const user = await requireProfile();
+    await assertWritable(user.id);
+  await assertWritable(user.id);
 
     const parsed = createMemorySchema.safeParse({
       title: formData.get("title"),
@@ -89,6 +95,7 @@ export async function updateMemoryAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = updateMemorySchema.safeParse({
     memoryId: formData.get("memoryId"),
@@ -125,6 +132,7 @@ export async function updateMemoryAction(
  */
 export async function deleteMemoryAction(formData: FormData): Promise<void> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
   if (!parsed.success) return;
@@ -171,6 +179,7 @@ export async function deleteMemoryAction(formData: FormData): Promise<void> {
 /** FR-MEM-9/12 — set the cover to one of the memory's own photos. */
 export async function setCoverAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = setCoverSchema.safeParse({
     memoryId: formData.get("memoryId"),
@@ -208,6 +217,7 @@ export async function setCoverAction(formData: FormData): Promise<FormState> {
 /** FR-MEM-11/D11 — go back to the automatic cover. */
 export async function clearCoverAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
   if (!parsed.success) return toFormState(parsed.error);
@@ -255,6 +265,7 @@ export async function clearCoverAction(formData: FormData): Promise<FormState> {
 /** FR-PHOTO-6 — delete a photo and its stored files. D10 limits contributors. */
 export async function deletePhotoAction(formData: FormData): Promise<void> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = photoIdSchema.safeParse({ photoId: formData.get("photoId") });
   if (!parsed.success) return;
@@ -283,6 +294,7 @@ export async function deletePhotoAction(formData: FormData): Promise<void> {
  */
 export async function deletePhotosAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = photoIdsSchema.safeParse({
     photoIds: formData.getAll("photoId").map(String),

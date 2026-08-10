@@ -90,13 +90,14 @@ export function PhotoViewer({
         <X size={20} aria-hidden="true" />
       </button>
 
-      <div className="flex max-w-full items-center gap-4 sm:gap-7">
-        <ViewerNav
-          direction="prev"
-          disabled={atFirst}
-          onClick={goPrev}
-        />
-
+      {/*
+        The controls OVERLAY the image rather than sitting beside it.
+        Laying them out in a row cost ~110px of horizontal space, so on a phone
+        the image at 78vw pushed the "next" control off-screen entirely — the
+        viewer looked one-directional. Overlaying is also the conventional
+        lightbox pattern, and it keeps the image as large as possible.
+      */}
+      <div className="relative flex max-w-full items-center justify-center">
         {/* FR-VIEW-7: fit to screen, aspect preserved. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- CDN-direct by design */}
         <img
@@ -104,13 +105,18 @@ export function PhotoViewer({
           alt=""
           className="rounded-lg object-contain"
           style={{
-            maxWidth: "min(78vw, 760px)",
-            maxHeight: "78vh",
+            maxWidth: "min(92vw, 760px)",
+            maxHeight: "72vh",
             boxShadow: "0 24px 60px rgba(0,0,0,.4)",
           }}
         />
 
-        <ViewerNav direction="next" disabled={atLast} onClick={goNext} />
+        <div className="absolute inset-y-0 left-1 flex items-center sm:-left-14">
+          <ViewerNav direction="prev" disabled={atFirst} onClick={goPrev} />
+        </div>
+        <div className="absolute inset-y-0 right-1 flex items-center sm:-right-14">
+          <ViewerNav direction="next" disabled={atLast} onClick={goNext} />
+        </div>
       </div>
 
       <p className="font-display text-[15px] font-semibold text-white">
@@ -138,9 +144,11 @@ function ViewerNav({
       onClick={onClick}
       disabled={disabled}
       aria-label={direction === "prev" ? "Previous photo" : "Next photo"}
-      className="grid size-11 shrink-0 place-items-center rounded-full text-white transition-opacity"
+      className="grid size-11 shrink-0 place-items-center rounded-full text-white backdrop-blur-sm transition-opacity"
       style={{
-        background: "rgba(255,255,255,.16)",
+        // Darker than the .16 white used elsewhere: these now sit ON the photo,
+        // where a translucent white disc can vanish against a bright image.
+        background: "rgba(20,10,36,.55)",
         opacity: disabled ? 0.28 : 1,
         cursor: disabled ? "not-allowed" : "pointer",
       }}

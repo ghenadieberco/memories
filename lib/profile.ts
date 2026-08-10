@@ -66,6 +66,20 @@ export async function requireProfile(): Promise<SessionUser> {
     .returning({ id: profiles.id });
 
   /*
+   * D22 — a deactivated account is refused here, on every authenticated
+   * request. Their Neon Auth session may still be valid, so this application
+   * layer is what actually locks them out; checking it in one place means no
+   * route can forget to.
+   */
+  const [existing] = await db
+    .select({ deactivatedAt: profiles.deactivatedAt })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  if (existing?.deactivatedAt) redirect("/sign-in?deactivated=1");
+
+  /*
    * D13/D14 — a memory may have been shared with this address before the person
    * had an account. Claim those invites the first time we see them, so the
    * memory is simply waiting under "Shared with me".

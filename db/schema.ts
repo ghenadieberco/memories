@@ -31,6 +31,21 @@ export const profiles = pgTable("profiles", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
   /**
+   * D22 — requirements §2 reserved this field "for future use"; the admin
+   * console is that future use. Held here rather than in Neon Auth's own `role`
+   * column so authorization never depends on a beta SDK whose admin endpoints
+   * were found returning 404.
+   */
+  role: text("role", { enum: ["user", "admin"] })
+    .notNull()
+    .default("user"),
+  /**
+   * D22 — set when an admin deactivates the account. Enforced on every
+   * authenticated request in `requireProfile`, so a deactivated user is locked
+   * out even though their Neon Auth session technically still exists.
+   */
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+  /**
    * FR-PROF-4 / NFR-OPT: always true. Surfaced in settings as an ON, read-only
    * control. The column exists so the UI has something to render, not so the
    * value can vary — never write `false` here.
@@ -299,6 +314,27 @@ export const photoTags = pgTable("photo_tags", {
     .notNull()
     .references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Global application settings (D22)
+// ---------------------------------------------------------------------------
+
+/**
+ * Single-row table holding app-wide switches.
+ *
+ * A table rather than an env var because maintenance mode has to be flipped by
+ * an admin at runtime, without a redeploy — a redeploy is exactly what you
+ * can't rely on when you need to freeze the app.
+ */
+export const appSettings = pgTable("app_settings", {
+  /** Always 'global'. The check constraint enforces the single row. */
+  id: text("id").primaryKey().default("global"),
+  maintenanceMode: boolean("maintenance_mode").notNull().default(false),
+  updatedBy: text("updated_by").references(() => profiles.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

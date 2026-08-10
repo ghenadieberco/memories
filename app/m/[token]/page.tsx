@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 
 import { GuestUploader } from "./guest-uploader";
 import { PublicGallery } from "./public-gallery";
+import { MaintenanceBanner } from "@/components/maintenance-banner";
 import { Wordmark } from "@/components/wordmark";
+import { isMaintenanceMode } from "@/lib/admin";
 import { getPublicMemory } from "@/lib/access";
 import { formatMemoryDate, photoCountLabel } from "@/lib/format";
 import { listMemoryPhotos } from "@/lib/memories";
@@ -54,9 +56,12 @@ export default async function PublicMemoryPage({
   if (!memory) notFound();
 
   const photos = await listMemoryPhotos(memory.id);
+  const maintenance = await isMaintenanceMode();
 
   return (
-    <main className="flex-1 px-[22px] py-[26px]">
+    <>
+      {maintenance && <MaintenanceBanner />}
+      <main className="flex-1 px-[22px] py-[26px]">
       <div className="mx-auto max-w-[1100px]">
         <header className="mb-5 flex items-center">
           <Wordmark size="nav" />
@@ -85,7 +90,8 @@ export default async function PublicMemoryPage({
         <p className="mt-8 text-center text-[12.5px] text-muted-foreground">
           Shared with you from Memories.
         </p>
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }

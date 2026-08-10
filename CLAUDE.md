@@ -1,16 +1,16 @@
 # Memories
 
-A responsive web app where a signed-in user organizes photos into dated albums ("memories"), browses them as a thumbnail grid or in a fullscreen viewer, shares them with other users or via public view-only links, and comments/likes/tags people on photos.
+A responsive web app where a signed-in user organizes photos into dated albums ("memories"), browses them as a thumbnail grid or in a fullscreen viewer, and shares them with other users or via public links (view-only, or optionally open to guest uploads).
 
-**Status:** **Phases 0 and 1 built and deployed.** Live at <https://memories.ghenadie-berco.com> (also reachable at `berco-memories.fly.dev`). Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert. Neon Postgres in AWS `us-east-1`, 8 tables migrated; public Tigris bucket `berco-memories-photos`; Neon Auth (Managed Better Auth) enabled with email sign-up + verify-at-sign-up.
+**Status:** live at <https://memories.ghenadie-berco.com> (Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert; Neon Postgres in AWS `us-east-1`; public Tigris bucket `berco-memories-photos`; Neon Auth with email sign-up + verify-at-sign-up).
 
 **Phases 0–3 are built and deployed. Phase 4 is empty by decision.** Auth, memories, photo upload/optimization, grid and viewer are verified working by the owner. Phase 3 (sharing, "Shared with me", public `/m/[token]` links) is deployed but **not yet exercised end-to-end**.
 
 **All social features are out of scope (D20)** — comments, likes, *and* people tagging. Don't build anything from requirements Section 3.7 (FR-SOC-1..5) without being asked. Tagging was built once and removed on request; the `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose.
 
-Two live workarounds for defects in `@neondatabase/auth@0.4.2-beta`, both documented in the plan and both to be re-tested when the SDK updates: `emailOtp.resetPassword` points at a 404 path (see `neonAuthPost`), and `auth.middleware()` redirects every non-GET request even with a valid session (see `proxy.ts` — this one silently broke every server action).
+Beyond the phased plan, three owner-requested additions are live: **guest photo contributions** (D21), **multi-select bulk delete**, and an **admin console with global maintenance mode** (D22). `/api/health?deep=1` writes to the live bucket — remove or protect it during hardening.
 
-The landing page at [app/page.tsx](app/page.tsx) is a temporary Phase 0 status board that runs the Neon + Tigris round-trip checks; Phase 1 replaces it with the real sign-in screen. `/api/health?deep=1` writes to the live bucket — remove or protect it during hardening.
+Two live workarounds for defects in `@neondatabase/auth@0.4.2-beta`, both documented in the plan and both to be re-tested when the SDK updates: `emailOtp.resetPassword` points at a 404 path (see `neonAuthPost`), and `auth.middleware()` redirects every non-GET request even with a valid session (see `proxy.ts` — this one silently broke every server action).
 
 ---
 
@@ -52,6 +52,8 @@ These come from the requirements' security/privacy sections and the plan's Secti
 - **Serve images from the Tigris/R2 public URL/CDN** — never proxy image bytes through the app.
 - **Deleting a memory or photo deletes its storage objects too** (no orphans).
 - **Secrets live in Fly secrets / `.env.local`, never in the repo.** `.env.local` must stay gitignored.
+- **Every mutation calls `assertWritable(userId)`** (D22) so maintenance mode actually freezes the app. If you add a server action or a write route, add the guard — there is no framework-level enforcement.
+- **Joining `neon_auth.user` to `profiles` requires `u.id::text`** — the former is `uuid`, the latter `text`.
 
 ---
 

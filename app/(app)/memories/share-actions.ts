@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import { memories, memoryShares, profiles } from "@/db/schema";
 import { AccessDeniedError, assertOwnsMemory } from "@/lib/access";
+import { MaintenanceModeError, assertWritable } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { sendShareNotification } from "@/lib/email";
 import { requireProfile } from "@/lib/profile";
@@ -28,6 +29,9 @@ import {
  */
 
 function shareError(error: unknown, fallback: string): FormState {
+  if (error instanceof MaintenanceModeError) {
+    return { error: "The app is in maintenance mode. Changes are paused." };
+  }
   if (error instanceof AccessDeniedError) {
     return { error: "That memory isn't available." };
   }
@@ -47,6 +51,7 @@ export async function shareMemoryAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = shareMemorySchema.safeParse({
     memoryId: formData.get("memoryId"),
@@ -128,6 +133,7 @@ export async function shareMemoryAction(
 /** FR-SHARE-4 — revoke access. */
 export async function revokeShareAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = shareIdSchema.safeParse({
     memoryId: formData.get("memoryId"),
@@ -157,6 +163,7 @@ export async function revokeShareAction(formData: FormData): Promise<FormState> 
 /** FR-SHARE-2 — switch someone between "can view" and "can add photos". */
 export async function updatePermissionAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = updatePermissionSchema.safeParse({
     memoryId: formData.get("memoryId"),
@@ -191,6 +198,7 @@ export async function updatePermissionAction(formData: FormData): Promise<FormSt
  */
 export async function togglePublicLinkAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
   if (!parsed.success) return toFormState(parsed.error);
@@ -220,6 +228,7 @@ export async function togglePublicLinkAction(formData: FormData): Promise<FormSt
  */
 export async function regeneratePublicLinkAction(formData: FormData): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
   if (!parsed.success) return toFormState(parsed.error);
@@ -253,6 +262,7 @@ export async function togglePublicContributeAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireProfile();
+  await assertWritable(user.id);
 
   const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
   if (!parsed.success) return toFormState(parsed.error);

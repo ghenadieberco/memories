@@ -7,6 +7,7 @@ import {
   assertCanContribute,
   getPublicMemoryForContribution,
 } from "@/lib/access";
+import { MaintenanceModeError, assertWritable } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { MAX_UPLOAD_BYTES, UnsupportedImageError, processImage } from "@/lib/image";
 import { getSessionUser } from "@/lib/profile";
@@ -95,6 +96,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Guests are never exempt from maintenance mode.
+    try {
+      await assertWritable(null);
+    } catch (error) {
+      if (error instanceof MaintenanceModeError) {
+        return NextResponse.json(
+          { error: "The app is paused for maintenance. Try again shortly." },
+          { status: 503 },
+        );
+      }
+      throw error;
+    }
+
     const memory = await getPublicMemoryForContribution(token);
     // Wrong token, revoked link, or contributions switched off — same answer.
     if (!memory) {
@@ -108,6 +122,18 @@ export async function POST(request: Request) {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    }
+
+    try {
+      await assertWritable(user.id);
+    } catch (error) {
+      if (error instanceof MaintenanceModeError) {
+        return NextResponse.json(
+          { error: "The app is paused for maintenance. Try again shortly." },
+          { status: 503 },
+        );
+      }
+      throw error;
     }
 
     memoryId = requestedMemoryId!;

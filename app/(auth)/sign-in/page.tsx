@@ -7,6 +7,7 @@ export const metadata = { title: "Sign in · Memories" };
 export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
   const params = await searchParams;
   const justReset = params.reset === "1";
+  const deactivated = params.deactivated === "1";
 
   return (
     <>
@@ -16,6 +17,13 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
       <p className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
         Sign in to see your memories.
       </p>
+
+      {deactivated && (
+        <p className="form-error mt-4" role="alert">
+          This account has been deactivated. Contact the administrator if you
+          think that&apos;s a mistake.
+        </p>
+      )}
 
       {justReset && (
         <p className="form-note mt-4" role="status">

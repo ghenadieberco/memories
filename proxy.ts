@@ -52,5 +52,10 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/memories/:path*", "/shared/:path*", "/settings/:path*"],
+  matcher: [
+    "/memories/:path*",
+    "/shared/:path*",
+    "/settings/:path*",
+    "/admin/:path*",
+  ],
 };

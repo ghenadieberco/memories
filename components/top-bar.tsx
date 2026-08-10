@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, Shield } from "lucide-react";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { Wordmark } from "@/components/wordmark";
@@ -12,7 +12,7 @@ import { Wordmark } from "@/components/wordmark";
  * purple→orange gradient is allowed (style guide §2, §11).
  */
 
-export function TopBar({ name }: { name: string }) {
+export function TopBar({ name, isAdmin = false }: { name: string; isAdmin?: boolean }) {
   const initial = (name.trim()[0] ?? "?").toUpperCase();
 
   return (
@@ -21,6 +21,13 @@ export function TopBar({ name }: { name: string }) {
         <Link href="/memories" aria-label="Memories home" className="mr-auto">
           <Wordmark size="nav" />
         </Link>
+
+        {isAdmin && (
+          <Link href="/admin" className="btn ghost sm" aria-label="Admin console">
+            <Shield size={15} aria-hidden="true" />
+            <span className="hidden sm:inline">Admin</span>
+          </Link>
+        )}
 
         <Link
           href="/settings"

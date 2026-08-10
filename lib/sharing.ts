@@ -139,7 +139,9 @@ export async function findProfileByEmail(email: string) {
   // profiles has no email column — Neon Auth owns identity — so this reaches
   // across to the auth schema, read-only, by exact lowercased address.
   const result = await db.execute<{ id: string }>(
-    sql`select id from neon_auth."user" where lower(email) = lower(${email}) limit 1`,
+    // id::text — the auth schema stores it as uuid, everything in this app
+    // stores it as text.
+    sql`select id::text as id from neon_auth."user" where lower(email) = lower(${email}) limit 1`,
   );
   const rows = result.rows as Array<{ id: string }>;
   return rows[0] ?? null;

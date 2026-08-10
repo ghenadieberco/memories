@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { auth, neonAuthPost } from "@/lib/auth/server";
+import { assertWritable } from "@/lib/admin";
 import {
   changePasswordSchema,
   forgotPasswordSchema,
@@ -336,6 +337,13 @@ export async function updateNameAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const { getSessionUser } = await import("@/lib/profile");
+  const sessionUser = await getSessionUser();
+  try {
+    await assertWritable(sessionUser?.id ?? null);
+  } catch {
+    return { error: "The app is in maintenance mode. Changes are paused." };
+  }
   const parsed = updateNameSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return toFormState(parsed.error);
 
@@ -355,6 +363,13 @@ export async function changePasswordAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const { getSessionUser } = await import("@/lib/profile");
+  const sessionUser = await getSessionUser();
+  try {
+    await assertWritable(sessionUser?.id ?? null);
+  } catch {
+    return { error: "The app is in maintenance mode. Changes are paused." };
+  }
   const parsed = changePasswordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
