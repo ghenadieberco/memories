@@ -34,12 +34,9 @@ A user signs in, creates a **memory** (a named album tied to a date, displayed a
 
 > **Scope note:** Sharing and social features (comments, likes, people tagging) change this from a private single-user app into a collaborative product. They are documented here as in-scope per direction; see the Scope-phasing note in Section 8 for a suggested delivery order.
 
-**Out of scope (candidate future work)**
-- Face detection and recognition to identify and group people across photos
-- Additional browsing views: timeline, map, and search
-- Native mobile apps (unless confirmed — see Open Questions)
-- User-configurable image optimization (deliberately locked)
-- Video support
+**Out of scope**
+
+Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, which now holds the whole "not in the build" picture: what has been *declined* (face detection/recognition, timeline/map/search views, native mobile, user-configurable image optimization, and — per D20 — social features) and, separately, what is *wanted for later* (Section 1, including **video support**, which was moved from declined to deferred on 10 August 2026).
 
 ---
 

@@ -517,7 +517,7 @@ Then update `NEXT_PUBLIC_APP_URL` and Neon Auth's **trusted domains / redirect U
 
 ## 12. Out of scope (do not build)
 
-Per the requirements doc: face detection/recognition; timeline/map/search views; native mobile; user-configurable image optimization; video. Keep the schema and UI free of hooks for these so the build stays lean.
+**Moved.** The out-of-scope list now lives in **[Future-Functionalities.md](Future-Functionalities.md), Section 2** — kept alongside the deferred-work list so there is one place to look for "not in the build, and why". That document distinguishes *declined* (Section 2) from *wanted, later* (Section 1). The rule is unchanged: don't build these, and keep the schema and UI free of hooks for them so the build stays lean.
 
 ---
 

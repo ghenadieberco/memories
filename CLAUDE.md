@@ -4,7 +4,7 @@ A responsive web app where a signed-in user organizes photos into dated albums (
 
 **Status:** live at <https://memories.ghenadie-berco.com> (Fly app `berco-memories`, region `iad`, 1 machine, Let's Encrypt cert; Neon Postgres in AWS `us-east-1`; public Tigris bucket `berco-memories-photos`; Neon Auth with email sign-up + verify-at-sign-up).
 
-**Phases 0–3 are built and deployed. Phase 4 is empty by decision.** Auth, memories, photo upload/optimization, grid and viewer are verified working by the owner. Phase 3 (sharing, "Shared with me", public `/m/[token]` links) is deployed but **not yet exercised end-to-end**.
+**Phases 0–3 are built, deployed, and verified working by the owner** — auth, memories, photo upload/optimization, grid and viewer, and Phase 3 sharing ("Shared with me", public `/m/[token]` links), which the owner confirmed end-to-end on 10 August 2026. **Phase 4 is empty by decision.**
 
 **All social features are out of scope (D20)** — comments, likes, *and* people tagging. Don't build anything from requirements Section 3.7 (FR-SOC-1..5) without being asked. Tagging was built once and removed on request; the `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose.
 
@@ -22,7 +22,9 @@ The `docs/` folder is the source of truth for this project. **Before writing or 
 |---|---|---|
 | [docs/Memories-App-Requirements.md](docs/Memories-App-Requirements.md) | **What** to build — functional requirements (`FR-*`), non-functional requirements (`NFR-*`), data model, screen map, assumptions | Any feature work; always check the relevant `FR-` ID before implementing |
 | [docs/Memories-Implementation-Plan.md](docs/Memories-Implementation-Plan.md) | **How** to build and deploy it — tech stack, architecture, project structure, env vars, SQL schema, phased build plan, deployment runbook | Scaffolding, wiring, schema/migration work, infra, deployment |
-| [docs/UI_STYLE_GUIDE.md](docs/UI_STYLE_GUIDE.md) | **How it looks and reads** — color tokens, typography, glassmorphism recipe, spacing/radius, components, motion, a11y, voice & copy | Any UI, styling, or user-facing copy work |
+| [docs/UI-Style-Guide.md](docs/UI-Style-Guide.md) | **How it looks and reads** — color tokens, typography, glassmorphism recipe, spacing/radius, components, motion, a11y, voice & copy | Any UI, styling, or user-facing copy work |
+| [docs/Current-Features.md](docs/Current-Features.md) | **What the app does today** — a plain-language catalogue of shipped behavior, plus a short list of known gaps | Orienting on the live product; checking whether something already exists before building it |
+| [docs/Future-Functionalities.md](docs/Future-Functionalities.md) | **What is *not* in the build** — Section 1 deferred (`FF-*`, wanted later), Section 2 out of scope (declined) | Before starting anything that isn't already an `FR-`; to check whether an idea is parked or refused |
 | [docs/memories-prototype.jsx](docs/memories-prototype.jsx) | Reference implementation of the intended look and interactions (single-file React prototype, mock data) | Building a screen or component — mine it for layout and behavior, don't ship it as-is |
 
 **Conflict rule (from the plan, Section 0):** the requirements doc wins on *what*, the implementation plan wins on *how*. The style guide wins on appearance and copy. The prototype is illustrative, not authoritative.
@@ -34,7 +36,9 @@ The `docs/` folder is the source of truth for this project. **Before writing or 
 - **Build one phase at a time**, in order, per the plan's Section 8 (Phase 0 foundation → 1 auth/account → 2 memories & photos core → 3 sharing & public links → 4 social). Finish a phase to its acceptance criteria before starting the next.
 - **Treat the plan's Section 9 "Assumed defaults" (D1–D12) as binding** unless the user says otherwise. They resolve the requirements doc's open questions — don't re-open them mid-task.
 - **Cite requirement IDs** (`FR-MEM-9`, `NFR-OPT`, `D5`, …) in commit messages, PR descriptions, and code comments where a non-obvious rule is being implemented.
-- **Don't build anything in the plan's Section 12 "Out of scope"**: face detection/recognition, timeline/map/search views, native mobile, user-configurable image optimization, video. Keep the schema and UI free of hooks for these.
+- **Don't build anything in Future-Functionalities Section 2 "Out of scope"** (moved there from the plan's Section 12): face detection/recognition, timeline/map/search views, native mobile, user-configurable image optimization. Keep the schema and UI free of hooks for these.
+- **Don't build Future-Functionalities Section 1 "Deferred" (`FF-*`) either** — download, video support, a larger viewer, slideshow. These are wanted eventually but unspecified; wait to be asked, and specify them into the requirements doc before writing code. Note **video moved out of "out of scope" into deferred** — it is no longer refused, but it is still not to be built unprompted.
+- **When an `FF-*` item ships, move it in the same change**: delete its entry from Future-Functionalities and describe the new behavior in Current-Features, in that document's plain, user-facing voice. Give it a real `FR-` ID in the requirements doc on the way through. The two lists are meant to stay complementary — anything appearing in both, or in neither, is a bug in the docs.
 - If a task requires a decision the docs don't cover, state the assumption and proceed — or ask, if getting it wrong would waste the work. Then propose the doc update rather than letting code and docs diverge.
 - When behavior intentionally changes, **update the relevant doc in the same change** so `docs/` stays the source of truth.
 
@@ -67,7 +71,7 @@ Auth is handled by Neon Auth — do not hand-roll password hashing, sessions, ve
 
 ## Style in one line
 
-Playful glassmorphism: cream canvas, drifting purple/orange light-orbs behind frosted-white panels, bright-purple identity with orange used only as an accent (dates, camera glyph, active toggle, contributor pill). Purple leads; one bold element per screen; keep colorful light behind every glass surface. Copy is active voice, sentence case, and an action keeps its name through the flow. Full tokens and component specs in [docs/UI_STYLE_GUIDE.md](docs/UI_STYLE_GUIDE.md).
+Playful glassmorphism: cream canvas, drifting purple/orange light-orbs behind frosted-white panels, bright-purple identity with orange used only as an accent (dates, camera glyph, active toggle, contributor pill). Purple leads; one bold element per screen; keep colorful light behind every glass surface. Copy is active voice, sentence case, and an action keeps its name through the flow. Full tokens and component specs in [docs/UI-Style-Guide.md](docs/UI-Style-Guide.md).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

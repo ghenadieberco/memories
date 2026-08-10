@@ -3,7 +3,7 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Memories design tokens — see docs/UI_STYLE_GUIDE.md (the authority on appearance).
+ * Memories design tokens — see docs/UI-Style-Guide.md (the authority on appearance).
  * The style guide's palette IS the shadcn palette here: the semantic tokens shadcn
  * components consume (--primary, --border, --ring, …) are mapped onto the Memories
  * tokens below, so any component added later is on-brand without per-component work.

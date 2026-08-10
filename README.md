@@ -147,7 +147,8 @@ app/          routes — currently the status page and api/health
 components/   shared UI (wordmark, shadcn components)
 db/           schema.ts, migrations/, migrate.ts
 lib/          env, db, storage, health
-docs/         requirements, implementation plan, style guide, prototype
+docs/         requirements, implementation plan, style guide, prototype,
+              current features, future functionalities (deferred + out of scope)
 scripts/      build tooling
 ```
 
