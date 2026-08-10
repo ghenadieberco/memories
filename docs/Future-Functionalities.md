@@ -25,11 +25,13 @@ This page is not authoritative on anything that *is* being built: [Memories-App-
 
 **When a deferred item ships, move it in the same change:** give it a real `FR-` ID in the requirements doc, add its build steps to the implementation plan, delete its entry here, and describe the new behavior in [Current-Features.md](Current-Features.md). The `FF-*` IDs below are provisional and exist only so these items can be referenced in conversation.
 
+**Numbering.** Every *feature* is numbered by its position — `1.1`–`1.4` in Section 1, `2.1`–`2.5` in Section 2 — so it can be pointed at by number. A number means "this is an item on the list"; unnumbered headings, like the cross-cutting reminders that close Section 1, are notes about the list rather than entries on it. The numbers are **positional, not stable**: removing or reordering an item renumbers the ones after it, and the numbers are expected to be resequenced in the same change. When something needs a durable reference (a commit message, a code comment, another document), cite the `FF-*` ID instead.
+
 ---
 
 ## 1. Deferred (wanted, later)
 
-### FF-DL — Download image / images / memory
+### 1.1 FF-DL — Download image / images / memory
 
 Let a viewer download photos out of a memory.
 
@@ -48,7 +50,7 @@ Notes and open points:
 - **Access rules must hold.** Downloading is a read, so it goes through the same scoped access helper as viewing. Separately decide whether **guests on a public link** may download at all — FR-SHARE-9 makes public access view-only, and download is arguably beyond viewing. Recommend: off by default, and if it is ever allowed, make it a per-memory owner opt-in like `public_can_contribute` (D21).
 - Large memories need a size or count ceiling and a progress indication; a silent multi-hundred-megabyte download is a bad outcome on mobile.
 
-### FF-VIDEO — Video support
+### 1.2 FF-VIDEO — Video support
 
 Allow videos alongside photos in a memory. **Previously declined; moved up to deferred on 10 August 2026.** Still unspecified — nothing here is settled.
 
@@ -61,7 +63,7 @@ Notes and open points:
 - Interacts with everything else on this page: FF-DL has to decide what "download as is" means for a transcoded video, FF-SLIDE has to decide whether a slideshow plays a video through or skips it, and FF-VIEW-BIG's sizing rules apply to a video frame differently.
 - Guest contribution (D21) would need an explicit decision — letting anonymous uploaders push large video files at a rate-limited public endpoint is a different risk profile from photos.
 
-### FF-VIEW-BIG — Enlarge the viewer
+### 1.3 FF-VIEW-BIG — Enlarge the viewer
 
 The fullscreen viewer currently caps the image at `min(92vw, 760px)` wide and `72vh` tall ([components/photo-viewer.tsx:108-109](../components/photo-viewer.tsx#L108-L109)), which leaves noticeable empty space on a desktop screen. Give the photo more of the viewport.
 
@@ -72,7 +74,7 @@ Notes and open points:
 - Decide whether this is simply a bigger fixed cap or a **zoom / fit-to-screen toggle** the viewer offers. These are different features; the second one is much larger and interacts with FF-SLIDE.
 - The style guide governs the surface — the frosted overlay, the control treatment, and the shadow stay as specified.
 
-### FF-SLIDE — Slideshow
+### 1.4 FF-SLIDE — Slideshow
 
 Play a memory's photos automatically, advancing on a timer, instead of clicking Forward each time.
 
@@ -97,15 +99,15 @@ Notes and open points:
 
 These are **declined**, not deferred. Moved here from the implementation plan's Section 12 and the requirements doc's Section 1.3, which now point at this list. Keep the schema and UI free of hooks for them so the build stays lean.
 
-| Item | Note |
-|---|---|
-| **Face detection and recognition** | Identifying and grouping people across photos. Never in v1. |
-| **Additional browsing views: timeline, map, search** | The Memories list and the per-memory grid are the only browsing surfaces. |
-| **Native mobile apps** | The product is a responsive web app (assumption **A1**). |
-| **User-configurable image optimization** | Deliberately locked. Optimization is mandatory and fixed (`NFR-OPT`, `FR-PROF-4`); the settings screen shows it as read-only and ON. |
-| **Social features — comments, likes, people tagging** | Declined per **D20**. Requirements Section 3.7 (`FR-SOC-1..5`) is dead text; don't build from it without being asked. Tagging was built once and removed on request. The `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose — leaving them is not an invitation to use them. |
+| # | Item | Note |
+|---|---|---|
+| **2.1** | **Face detection and recognition** | Identifying and grouping people across photos. Never in v1. |
+| **2.2** | **Additional browsing views: timeline, map, search** | The Memories list and the per-memory grid are the only browsing surfaces. |
+| **2.3** | **Native mobile apps** | The product is a responsive web app (assumption **A1**). |
+| **2.4** | **User-configurable image optimization** | Deliberately locked. Optimization is mandatory and fixed (`NFR-OPT`, `FR-PROF-4`); the settings screen shows it as read-only and ON. |
+| **2.5** | **Social features — comments, likes, people tagging** | Declined per **D20**. Requirements Section 3.7 (`FR-SOC-1..5`) is dead text; don't build from it without being asked. Tagging was built once and removed on request. The `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose — leaving them is not an invitation to use them. |
 
-If one of these is ever revived, it moves up to Section 1 first and gets specified there — it does not go straight into code. **Video support** made exactly that move on 10 August 2026 and now sits in Section 1 as **FF-VIDEO**; older docs and comments that call video "out of scope" are stale.
+If one of these is ever revived, it moves up to Section 1 first and gets specified there — it does not go straight into code. **Video support** made exactly that move on 10 August 2026 and now sits in Section 1 as **1.2 FF-VIDEO**; older docs and comments that call video "out of scope" are stale.
 
 ---
 
