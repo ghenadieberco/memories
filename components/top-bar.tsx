@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { LogOut, Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon } from "lucide-react";
 
-import { signOutAction } from "@/app/(auth)/actions";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Wordmark } from "@/components/wordmark";
 
 /*
@@ -17,7 +17,7 @@ export function TopBar({ name }: { name: string }) {
 
   return (
     <header className="px-[22px] pt-[22px]">
-      <div className="glass mx-auto flex max-w-[1100px] items-center gap-3 rounded-[22px] px-4 py-3">
+      <div className="glass mx-auto flex max-w-[1100px] items-center gap-3 rounded-xl px-4 py-3">
         <Link href="/memories" aria-label="Memories home" className="mr-auto">
           <Wordmark size="nav" />
         </Link>
@@ -31,12 +31,7 @@ export function TopBar({ name }: { name: string }) {
           <span className="hidden sm:inline">Settings</span>
         </Link>
 
-        <form action={signOutAction}>
-          <button type="submit" className="btn ghost sm" aria-label="Sign out">
-            <LogOut size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
-        </form>
+        <SignOutButton />
 
         <span
           className="grid size-10 shrink-0 place-items-center rounded-full font-display text-[16px] font-semibold text-white"
