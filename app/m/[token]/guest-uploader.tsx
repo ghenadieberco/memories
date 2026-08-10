@@ -96,9 +96,10 @@ export function GuestUploader({ token }: { token: string }) {
   const failed = uploads.filter((u) => u.status === "failed");
   const done = uploads.filter((u) => u.status === "done").length;
 
+  // Stacks below the style guide's 640px breakpoint: description, then button.
   return (
-    <div className="glass mb-5 flex flex-wrap items-center gap-3 rounded-2xl p-[22px]">
-      <div className="min-w-0 flex-1">
+    <div className="glass mb-5 flex flex-col items-start gap-3 rounded-2xl p-[22px] sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="min-w-0 sm:flex-1">
         <p className="text-[14.5px] font-bold text-ink">
           Add your photos and videos
         </p>
