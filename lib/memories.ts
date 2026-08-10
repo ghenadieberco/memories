@@ -17,16 +17,37 @@ export type MemoryCard = {
   title: string;
   memoryDate: string;
   photoCount: number;
+  /** FR-VIDEO-4 — counted separately so the card can't call a video a photo. */
+  videoCount: number;
   /** Already-resolved thumbnail URL, or null to render the placeholder. */
   coverUrl: string | null;
 };
 
+/**
+ * One item in a memory — a photo or a video (FR-VIDEO-1).
+ *
+ * `url` is the CDN URL of the full asset (the optimized WebP, or the video file
+ * itself) and `thumbnailUrl` is always an image: a photo's thumbnail or a
+ * video's poster frame. Callers that only need "the picture for this item" can
+ * therefore ignore `mediaType` entirely.
+ *
+ * `originalFilename`, `mimeType` and `sizeBytes` exist for FR-DL-*: the
+ * download builds its filenames and enforces its size ceiling in the browser,
+ * from data the server already vetted, so downloading adds no new server
+ * surface and no new access path.
+ */
 export type MemoryPhoto = {
   id: string;
+  mediaType: "image" | "video";
   url: string;
   thumbnailUrl: string;
   width: number | null;
   height: number | null;
+  /** Playback length in seconds; null for photos (FR-VIDEO-5). */
+  durationSeconds: number | null;
+  originalFilename: string | null;
+  mimeType: string;
+  sizeBytes: number | null;
   /** NULL for an anonymous guest upload via a public link (D21). */
   uploadedBy: string | null;
 };
@@ -65,7 +86,8 @@ export async function listOwnedMemories(userId: string): Promise<MemoryCard[]> {
       memoryDate: memories.memoryDate,
       coverSource: memories.coverSource,
       coverThumbnailKey: memories.coverThumbnailKey,
-      photoCount: sql<number>`count(${photos.id})::int`,
+      photoCount: sql<number>`(count(${photos.id}) filter (where ${photos.mediaType} = 'image'))::int`,
+      videoCount: sql<number>`(count(${photos.id}) filter (where ${photos.mediaType} = 'video'))::int`,
       coverPhotoThumbKey: sql<
         string | null
       >`(select p.thumbnail_key from photos p where p.id = ${memories.coverPhotoId})`,
@@ -89,6 +111,7 @@ export async function listOwnedMemories(userId: string): Promise<MemoryCard[]> {
     title: row.title,
     memoryDate: row.memoryDate,
     photoCount: row.photoCount,
+    videoCount: row.videoCount,
     coverUrl: resolveCover(row),
   }));
 }
@@ -109,10 +132,15 @@ export async function listMemoryPhotos(memoryId: string): Promise<MemoryPhoto[]>
 
   return rows.map((photo) => ({
     id: photo.id,
+    mediaType: photo.mediaType,
     url: publicUrl(photo.storageKey),
     thumbnailUrl: publicUrl(photo.thumbnailKey),
     width: photo.width,
     height: photo.height,
+    durationSeconds: photo.durationSeconds,
+    originalFilename: photo.originalFilename,
+    mimeType: photo.mimeType,
+    sizeBytes: photo.optimizedSizeBytes,
     uploadedBy: photo.uploadedBy,
   }));
 }

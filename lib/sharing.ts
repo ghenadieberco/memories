@@ -34,7 +34,8 @@ export async function listSharedMemories(userId: string): Promise<
       coverSource: memories.coverSource,
       coverThumbnailKey: memories.coverThumbnailKey,
       sharedBy: profiles.displayName,
-      photoCount: sql<number>`(select count(*)::int from photos p where p.memory_id = ${memories.id})`,
+      photoCount: sql<number>`(select count(*)::int from photos p where p.memory_id = ${memories.id} and p.media_type = 'image')`,
+      videoCount: sql<number>`(select count(*)::int from photos p where p.memory_id = ${memories.id} and p.media_type = 'video')`,
       coverPhotoThumbKey: sql<
         string | null
       >`(select p.thumbnail_key from photos p where p.id = ${memories.coverPhotoId})`,
@@ -61,6 +62,7 @@ export async function listSharedMemories(userId: string): Promise<
     title: row.title,
     memoryDate: row.memoryDate,
     photoCount: row.photoCount,
+    videoCount: row.videoCount,
     sharedBy: row.sharedBy,
     coverUrl:
       row.coverSource === "custom" && row.coverThumbnailKey

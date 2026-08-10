@@ -1,12 +1,14 @@
 # Memories App
 
-A responsive web app for organizing photos into dated albums ("memories"), browsing
-them as a thumbnail grid or fullscreen viewer, sharing them with other people or via
-public view-only links, and commenting/liking/tagging people on photos.
+A responsive web app for organizing photos and videos into dated albums ("memories"),
+browsing them as a thumbnail grid or in a zoomable fullscreen viewer, downloading them
+individually or as a `.zip`, and sharing them with other people or via public links.
 
-**Current status:** Phase 0 (foundation). The app boots, renders, and self-checks its
-Neon and Tigris connections — authentication and the memories UI arrive in Phases 1–2.
-See [CLAUDE.md](CLAUDE.md) for phase status and [docs/](docs/) for the full spec.
+**Current status:** live. Phases 0–3 plus the owner-requested additions (guest
+contributions, bulk delete, admin console) and Phase 6 (download, video, enlarged
+viewer). Social features are out of scope. See [CLAUDE.md](CLAUDE.md) for status,
+[docs/Current-Features.md](docs/Current-Features.md) for what it does today, and
+[docs/](docs/) for the full spec.
 
 ---
 
@@ -108,6 +110,7 @@ curl "localhost:3000/api/health?deep=1" # also writes + reads a real storage obj
 | `npm run db:migrate` | Apply pending migrations |
 | `npm run db:studio` | Browse the database in Drizzle Studio |
 | `npm run db:bundle-migrate` | Bundle the migrator for the container (used by the Docker build) |
+| `npm run storage:cors -- <origin>` | **Run once per bucket.** Allows the browser to `fetch` stored files, which downloads need. Without it, downloading fails while everything else works. Pass the production origin — bare, it only authorises `localhost` |
 
 ## Building the container
 

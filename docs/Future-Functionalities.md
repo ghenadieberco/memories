@@ -25,56 +25,15 @@ This page is not authoritative on anything that *is* being built: [Memories-App-
 
 **When a deferred item ships, move it in the same change:** give it a real `FR-` ID in the requirements doc, add its build steps to the implementation plan, delete its entry here, and describe the new behavior in [Current-Features.md](Current-Features.md). The `FF-*` IDs below are provisional and exist only so these items can be referenced in conversation.
 
-**Numbering.** Every *feature* is numbered by its position — `1.1`–`1.4` in Section 1, `2.1`–`2.5` in Section 2 — so it can be pointed at by number. A number means "this is an item on the list"; unnumbered headings, like the cross-cutting reminders that close Section 1, are notes about the list rather than entries on it. The numbers are **positional, not stable**: removing or reordering an item renumbers the ones after it, and the numbers are expected to be resequenced in the same change. When something needs a durable reference (a commit message, a code comment, another document), cite the `FF-*` ID instead.
+**Numbering.** Every *feature* is numbered by its position — `1.1` in Section 1, `2.1`–`2.5` in Section 2 — so it can be pointed at by number. A number means "this is an item on the list"; unnumbered headings, like the cross-cutting reminders that close Section 1, are notes about the list rather than entries on it. The numbers are **positional, not stable**: removing or reordering an item renumbers the ones after it, and the numbers are expected to be resequenced in the same change — as they were when Section 1's first three entries shipped on 10 August 2026 and the slideshow moved up from `1.4` to `1.1`. When something needs a durable reference (a commit message, a code comment, another document), cite the `FF-*` ID instead.
 
 ---
 
 ## 1. Deferred (wanted, later)
 
-### 1.1 FF-DL — Download image / images / memory
+> **Three items left this section on 10 August 2026** — FF-DL (download), FF-VIDEO (video support), and FF-VIEW-BIG (a larger viewer, built with zoom controls) were built and are now described in [Current-Features.md](Current-Features.md) §4, §5 and §6. They hold real requirement IDs — `FR-DL-1..7`, `FR-VIDEO-1..6`, `FR-VIEW-8/9` — and the decisions they forced are recorded as **D23** (video: store as uploaded, no transcode) and **D24** (download: assembled in the browser, guests included) in the implementation plan's Section 9.
 
-Let a viewer download photos out of a memory.
-
-| | |
-|---|---|
-| **Single photo selected** | Download the file **as is** — one image, no archive, no re-encoding. |
-| **Multiple photos selected** | Download a **`.zip`** containing the selected images. |
-| **Whole memory** | Download a **`.zip`** of every photo in the memory. |
-
-Notes and open points:
-
-- **"As is" means the stored optimized WebP, not the camera original.** Per D5 the original upload is discarded after optimization, so there is nothing else to hand back. Confirm the owner is happy with that before building, and make sure the UI copy doesn't promise an original.
-- Filenames inside the zip, and the zip's own name, need deciding — likely `MemoryTitle - (Formatted Date).zip` to match FR-MEM-2, with per-photo names derived from capture date or upload order.
-- **Where the bytes come from matters.** Photos are served straight from the Tigris public URL, and the non-negotiable is that image bytes are never proxied through the app. A single-file download can be a direct link to the CDN object. A zip cannot — it has to be assembled somewhere. Decide between streaming the archive from a server route (which does move bytes through the app, so it needs an explicit, documented exception) and building it in the browser from the CDN URLs. Settle this before any code.
-- Multi-select already exists for bulk delete; the download action should reuse that selection, not introduce a second selection mode.
-- **Access rules must hold.** Downloading is a read, so it goes through the same scoped access helper as viewing. Separately decide whether **guests on a public link** may download at all — FR-SHARE-9 makes public access view-only, and download is arguably beyond viewing. Recommend: off by default, and if it is ever allowed, make it a per-memory owner opt-in like `public_can_contribute` (D21).
-- Large memories need a size or count ceiling and a progress indication; a silent multi-hundred-megabyte download is a bad outcome on mobile.
-
-### 1.2 FF-VIDEO — Video support
-
-Allow videos alongside photos in a memory. **Previously declined; moved up to deferred on 10 August 2026.** Still unspecified — nothing here is settled.
-
-Notes and open points:
-
-- This is the largest item on the page by a wide margin, and it is not a variation on the photo path. Nearly every mandatory rule for images is image-specific and would need a video equivalent decided from scratch: the `sharp` pipeline (resize + WebP + thumbnail + EXIF, `NFR-OPT`) does not process video, so transcoding, poster-frame generation, and a "discard the original" answer (D5) all need their own decisions.
-- Transcoding is the fork in the road: doing it in-process on the Fly machine competes with request serving and is slow for large files; an external service adds a vendor and a cost line. Decide before anything else, because the upload flow, progress reporting, and failure handling all follow from it.
-- Storage and egress economics change materially — this is the strongest argument for the R2-vs-Tigris choice being revisited (plan, Section 1). Videos are large and read-heavy.
-- Touches the data model (a media type on the photo record, duration, poster reference), the grid (a play affordance on the tile), the viewer (playback controls, which is a different component from the image viewer), upload limits, and accepted formats (`FR-PHOTO-2`).
-- Interacts with everything else on this page: FF-DL has to decide what "download as is" means for a transcoded video, FF-SLIDE has to decide whether a slideshow plays a video through or skips it, and FF-VIEW-BIG's sizing rules apply to a video frame differently.
-- Guest contribution (D21) would need an explicit decision — letting anonymous uploaders push large video files at a rate-limited public endpoint is a different risk profile from photos.
-
-### 1.3 FF-VIEW-BIG — Enlarge the viewer
-
-The fullscreen viewer currently caps the image at `min(92vw, 760px)` wide and `72vh` tall ([components/photo-viewer.tsx:108-109](../components/photo-viewer.tsx#L108-L109)), which leaves noticeable empty space on a desktop screen. Give the photo more of the viewport.
-
-Notes and open points:
-
-- Raising the caps is the whole change in spirit, but the layout has to keep working: the nav controls overlay the image on narrow screens for a reason (they used to get pushed off-screen), and the `1 / N` counter sits below the image. Both need to survive a taller image.
-- FR-VIEW-7 still governs — scale to fit, preserve aspect ratio, never upscale past the photo's own pixels. The optimized asset is ~2048px on its longest edge, so on a large display the ceiling is the file, not the CSS.
-- Decide whether this is simply a bigger fixed cap or a **zoom / fit-to-screen toggle** the viewer offers. These are different features; the second one is much larger and interacts with FF-SLIDE.
-- The style guide governs the surface — the frosted overlay, the control treatment, and the shadow stay as specified.
-
-### 1.4 FF-SLIDE — Slideshow
+### 1.1 FF-SLIDE — Slideshow
 
 Play a memory's photos automatically, advancing on a timer, instead of clicking Forward each time.
 
@@ -84,14 +43,14 @@ Notes and open points:
 - **Wraparound is the interesting question.** FR-VIEW-5 and D7 say the manual viewer stops at the ends and never wraps. A slideshow that stops dead on the last photo is defensible; one that loops is the more common expectation. Pick one deliberately and record it — if the slideshow loops while manual navigation doesn't, that difference should be intentional and documented, not an accident.
 - Preloading matters more here than in manual mode. The viewer already warms the immediate neighbours; a timed advance may want to look further ahead.
 - Accessibility: auto-advancing content needs a pause control and should respect `prefers-reduced-motion`, per the style guide's motion and a11y rules.
-- Interacts with FF-VIEW-BIG — a slideshow is the case where a larger viewer pays off most. If both are built, build the sizing first.
+- **Video is now in the product, so the slideshow has to answer for it** (`FR-VIDEO-2`). Decide whether a timed advance plays a video through to its end, gives it the fixed interval like a photo, or skips it. Note the viewer deliberately does *not* prefetch video neighbours (`NFR-PERF`), which a slideshow's look-ahead would need to reconsider.
+- **The viewer now has zoom** (`FR-VIEW-9`). Decide what a slideshow advance does to a zoomed photo — almost certainly reset to fit, matching what manual navigation already does.
 
-### Cross-cutting reminders for whoever picks these up
+### Cross-cutting reminders for whoever picks this up
 
-- Every item here lives in the authenticated viewer *and* potentially on the public `/m/[token]` route. Decide guest behaviour explicitly for each one rather than letting it fall out of shared components.
-- FF-DL, FF-VIEW-BIG, and FF-SLIDE are reads, so `assertWritable(userId)` (D22) does not apply — but the moment any of them grows a write (a saved slideshow speed, a download audit log), the guard is mandatory. **FF-VIDEO is a write path** and carries the guard from its first line of code.
+- The slideshow lives in the authenticated viewer *and* on the public `/m/[token]` route, which share one `PhotoViewer` component. Decide guest behaviour explicitly rather than letting it fall out of that sharing — as download did, deliberately, in D24.
+- A slideshow is a read, so `assertWritable(userId)` (D22) does not apply — but the moment it grows a write (a saved speed preference, say), the guard is mandatory.
 - Anything reaching the server still validates its input with Zod at the boundary.
-- FF-VIDEO changes the shape of the other three. If it is ever scheduled, sequence it first or accept reworking whatever was built before it.
 
 ---
 
@@ -107,7 +66,7 @@ These are **declined**, not deferred. Moved here from the implementation plan's 
 | **2.4** | **User-configurable image optimization** | Deliberately locked. Optimization is mandatory and fixed (`NFR-OPT`, `FR-PROF-4`); the settings screen shows it as read-only and ON. |
 | **2.5** | **Social features — comments, likes, people tagging** | Declined per **D20**. Requirements Section 3.7 (`FR-SOC-1..5`) is dead text; don't build from it without being asked. Tagging was built once and removed on request. The `comments`, `likes`, `persons`, and `photo_tags` tables remain in the schema, unused, on purpose — leaving them is not an invitation to use them. |
 
-If one of these is ever revived, it moves up to Section 1 first and gets specified there — it does not go straight into code. **Video support** made exactly that move on 10 August 2026 and now sits in Section 1 as **1.2 FF-VIDEO**; older docs and comments that call video "out of scope" are stale.
+If one of these is ever revived, it moves up to Section 1 first and gets specified there — it does not go straight into code. **Video support** made exactly that move on 10 August 2026, and then made the rest of the journey the same day: it was specified into the requirements as `FR-VIDEO-1..6` and built. It is now in [Current-Features.md](Current-Features.md) §4. Older docs and comments that call video "out of scope" are stale.
 
 ---
 

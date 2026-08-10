@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ImageIcon } from "lucide-react";
 
-import { formatMemoryDate, photoCountLabel } from "@/lib/format";
+import { formatMemoryDate, mediaCountLabel } from "@/lib/format";
 import type { MemoryCard as MemoryCardData } from "@/lib/memories";
 
 /*
@@ -41,7 +41,7 @@ export function MemoryCard({ memory }: { memory: MemoryCardData }) {
           className="absolute right-2.5 bottom-2.5 rounded-full px-2.5 py-1 text-[12px] font-bold text-white"
           style={{ background: "rgba(0,0,0,.28)", backdropFilter: "blur(6px)" }}
         >
-          {photoCountLabel(memory.photoCount)}
+          {mediaCountLabel(memory.photoCount, memory.videoCount)}
         </span>
       </div>
 

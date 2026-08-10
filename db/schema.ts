@@ -150,7 +150,26 @@ export const photos = pgTable(
      */
     uploadedBy: text("uploaded_by").references(() => profiles.id),
 
-    /** Object-storage keys. High-entropy so URLs are not enumerable. */
+    /**
+     * FR-VIDEO-1 / D23 — what kind of media this row holds.
+     *
+     * Defaults to 'image' so every row that existed before video support keeps
+     * its meaning without a backfill. The two types share this table rather than
+     * getting one of their own because everything around them — ordering, access,
+     * cover resolution, deletion, the grid — treats them identically; only
+     * decoding and playback differ.
+     */
+    mediaType: text("media_type", { enum: ["image", "video"] })
+      .notNull()
+      .default("image"),
+
+    /**
+     * Object-storage keys. High-entropy so URLs are not enumerable.
+     *
+     * For a video, `storage_key` is the video file as uploaded (D23 — no
+     * transcode) and `thumbnail_key` is the WebP poster frame, so every caller
+     * that just wants "the picture for this row" needs no special case.
+     */
     storageKey: text("storage_key").notNull(),
     thumbnailKey: text("thumbnail_key").notNull(),
 
@@ -161,7 +180,19 @@ export const photos = pgTable(
     optimizedSizeBytes: bigint("optimized_size_bytes", { mode: "number" }),
     originalSizeBytes: bigint("original_size_bytes", { mode: "number" }),
 
-    /** NFR-OPT: extracted from EXIF *before* metadata is stripped. */
+    /**
+     * FR-VIDEO-5 — playback length, read from the browser's own decode of the
+     * file before upload. Null for images.
+     */
+    durationSeconds: integer("duration_seconds"),
+
+    /**
+     * NFR-OPT: extracted from EXIF *before* metadata is stripped.
+     *
+     * Always null for video (D23): container creation timestamps are absent or
+     * zeroed often enough to be worse than no value at all, so videos sort by
+     * upload time via the coalesce in FR-PHOTO-7's ordering.
+     */
     takenAt: timestamp("taken_at", { withTimezone: true }),
 
     sortOrder: integer("sort_order").notNull().default(0),
@@ -178,6 +209,7 @@ export const photos = pgTable(
       "photos_status_check",
       sql`${table.status} in ('uploading','ready','failed')`,
     ),
+    check("photos_media_type_check", sql`${table.mediaType} in ('image','video')`),
   ],
 );
 

@@ -4,23 +4,39 @@ import { useRef, useState, useTransition } from "react";
 import { CheckSquare, ImagePlus, Loader2, Square, Star, Trash2, X } from "lucide-react";
 
 import { deletePhotoAction, deletePhotosAction, setCoverAction } from "../actions";
+import { DownloadButton } from "@/components/download-button";
 import { PhotoViewer } from "@/components/photo-viewer";
+import { VideoBadge } from "@/components/video-badge";
+import { archiveNameFor } from "@/lib/download";
 import type { MemoryPhoto } from "@/lib/memories";
+import { MAX_VIDEO_BYTES } from "@/lib/video";
+import { capturePoster, isVideoFile } from "@/lib/video-capture";
 
 /*
- * Thumbnail grid + uploader + viewer trigger (FR-VIEW-1/2, FR-PHOTO-1/5/6).
+ * Thumbnail grid + uploader + viewer trigger
+ * (FR-VIEW-1/2, FR-PHOTO-1/5/6, FR-VIDEO-1/4, FR-DL-2/3).
  *
  * Uploads run one file per request against /api/photos so per-file success and
  * failure can be reported (FR-PHOTO-5), and so a 1GB VM never has to hold a
  * whole album at once. Concurrency is capped for the same reason.
+ *
+ * A video takes a detour first: the browser decodes a poster frame (D23) and
+ * sends it alongside the file, because the server has no way to produce one.
  */
 
 const UPLOAD_CONCURRENCY = 2;
+
+/** Formats the file picker offers. Video is D23's short, deliberate list. */
+const ACCEPTED_TYPES =
+  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif," +
+  "video/mp4,video/webm,.mp4,.m4v,.mov,.webm";
 
 type UploadState = { name: string; status: "pending" | "done" | "failed"; error?: string };
 
 export function PhotoGrid({
   memoryId,
+  memoryTitle,
+  memoryDate,
   photos,
   canAddPhotos,
   canSetCover,
@@ -28,6 +44,8 @@ export function PhotoGrid({
   isOwner,
 }: {
   memoryId: string;
+  memoryTitle: string;
+  memoryDate: string;
   photos: MemoryPhoto[];
   canAddPhotos: boolean;
   canSetCover: boolean;
@@ -101,6 +119,23 @@ export function PhotoGrid({
         body.append("file", file);
 
         try {
+          /*
+           * FR-VIDEO-3 — a video carries its poster frame with it. Failing
+           * here, before a single byte is uploaded, is the point: a file this
+           * browser can't decode is a file it couldn't have played back
+           * either, and rejecting it now costs the user nothing.
+           */
+          if (isVideoFile(file)) {
+            if (file.size > MAX_VIDEO_BYTES) {
+              throw new Error(`${file.name} is over 100 MB.`);
+            }
+            const { poster, durationSeconds } = await capturePoster(file);
+            body.append("poster", poster, "poster.jpg");
+            if (durationSeconds !== null) {
+              body.append("durationSeconds", String(durationSeconds));
+            }
+          }
+
           const response = await fetch("/api/photos", { method: "POST", body });
           if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
@@ -141,7 +176,7 @@ export function PhotoGrid({
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+            accept={ACCEPTED_TYPES}
             multiple
             hidden
             onChange={(event) => {
@@ -161,7 +196,7 @@ export function PhotoGrid({
             ) : (
               <ImagePlus size={15} aria-hidden="true" />
             )}
-            {busy ? `Uploading ${done}/${uploads.length}…` : "Add photos"}
+            {busy ? `Uploading ${done}/${uploads.length}…` : "Add photos or videos"}
           </button>
 
           {actionError && (
@@ -200,6 +235,13 @@ export function PhotoGrid({
               >
                 {selected.size === photos.length ? "Clear all" : "Select all"}
               </button>
+              {/* FR-DL-2 — reuses the existing selection rather than adding a
+                  second one, per the deferred item's own instruction. */}
+              <DownloadButton
+                photos={photos.filter((photo) => selected.has(photo.id))}
+                archiveName={archiveNameFor(memoryTitle, memoryDate)}
+                label={`Download ${selected.size > 0 ? selected.size : ""}`.trim()}
+              />
               <button
                 type="button"
                 className="btn danger sm"
@@ -215,14 +257,22 @@ export function PhotoGrid({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              className="btn ghost sm"
-              onClick={() => setSelectMode(true)}
-            >
-              <CheckSquare size={15} aria-hidden="true" />
-              Select
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() => setSelectMode(true)}
+              >
+                <CheckSquare size={15} aria-hidden="true" />
+                Select
+              </button>
+              {/* FR-DL-3 — the whole memory, in display order. */}
+              <DownloadButton
+                photos={photos}
+                archiveName={archiveNameFor(memoryTitle, memoryDate)}
+                label="Download all"
+              />
+            </>
           )}
         </div>
       )}
@@ -232,8 +282,8 @@ export function PhotoGrid({
           <ImagePlus size={36} className="text-purple-l" aria-hidden="true" />
           <p className="mt-3 text-[13px] text-muted-foreground">
             {canAddPhotos
-              ? "No photos yet. Add the ones worth keeping."
-              : "No photos in this memory yet."}
+              ? "Nothing here yet. Add the photos and videos worth keeping."
+              : "Nothing in this memory yet."}
           </p>
         </div>
       ) : (
@@ -258,11 +308,13 @@ export function PhotoGrid({
                 }}
                 aria-label={
                   selectMode
-                    ? `${selected.has(photo.id) ? "Deselect" : "Select"} photo ${index + 1}`
-                    : `Open photo ${index + 1}`
+                    ? `${selected.has(photo.id) ? "Deselect" : "Select"} ${photo.mediaType} ${index + 1}`
+                    : `Open ${photo.mediaType} ${index + 1}`
                 }
                 aria-pressed={selectMode ? selected.has(photo.id) : undefined}
               >
+                {/* A video shows its poster frame here — same element, same
+                    lazy loading; VideoBadge is what says it's a video. */}
                 {/* eslint-disable-next-line @next/next/no-img-element -- CDN-direct by design */}
                 <img
                   src={photo.thumbnailUrl}
@@ -271,6 +323,7 @@ export function PhotoGrid({
                   decoding="async"
                   className="h-full w-full object-cover"
                 />
+                <VideoBadge photo={photo} />
               </button>
 
               {selectMode && (

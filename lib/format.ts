@@ -40,3 +40,23 @@ export function todayIsoDate(): string {
 export function photoCountLabel(count: number): string {
   return count === 1 ? "1 photo" : `${count} photos`;
 }
+
+/** "1 video" / "3 videos" — FR-VIDEO-4. */
+export function videoCountLabel(count: number): string {
+  return count === 1 ? "1 video" : `${count} videos`;
+}
+
+/**
+ * What a memory holds — FR-MEM-8 extended for video (FR-VIDEO-4).
+ *
+ * "9 photos · 3 videos" when it has both, and just the one that applies when it
+ * doesn't. A memory of nothing but video must never be described as photos, and
+ * a memory with no video must not gain a "0 videos" that reads as a reproach.
+ * An empty memory keeps saying "0 photos", which is what it said before video
+ * existed.
+ */
+export function mediaCountLabel(photoCount: number, videoCount: number): string {
+  if (videoCount === 0) return photoCountLabel(photoCount);
+  if (photoCount === 0) return videoCountLabel(videoCount);
+  return `${photoCountLabel(photoCount)} · ${videoCountLabel(videoCount)}`;
+}

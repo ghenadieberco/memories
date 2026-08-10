@@ -7,7 +7,7 @@ import { MaintenanceBanner } from "@/components/maintenance-banner";
 import { Wordmark } from "@/components/wordmark";
 import { isMaintenanceMode } from "@/lib/admin";
 import { getPublicMemory } from "@/lib/access";
-import { formatMemoryDate, photoCountLabel } from "@/lib/format";
+import { formatMemoryDate, mediaCountLabel } from "@/lib/format";
 import { listMemoryPhotos } from "@/lib/memories";
 
 /*
@@ -75,7 +75,11 @@ export default async function PublicMemoryPage({
             ({formatMemoryDate(memory.memoryDate)})
           </p>
           <p className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
-            {photoCountLabel(photos.length)} · shared album
+            {mediaCountLabel(
+              photos.filter((photo) => photo.mediaType === "image").length,
+              photos.filter((photo) => photo.mediaType === "video").length,
+            )}{" "}
+            · shared album
           </p>
         </div>
 
@@ -85,7 +89,11 @@ export default async function PublicMemoryPage({
         */}
         {memory.publicCanContribute && <GuestUploader token={token} />}
 
-        <PublicGallery photos={photos} />
+        <PublicGallery
+          photos={photos}
+          memoryTitle={memory.title}
+          memoryDate={memory.memoryDate}
+        />
 
         <p className="mt-8 text-center text-[12.5px] text-muted-foreground">
           Shared with you from Memories.

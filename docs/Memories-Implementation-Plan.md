@@ -35,6 +35,8 @@ Build **one phase at a time**. Each phase has scope, tasks, and acceptance crite
 | **Auth** | **Neon Auth** (Managed Better Auth) | Managed users/sessions in your Neon DB; Next.js SDK; email verify + reset — covers FR-AUTH-* |
 | **Photo storage** | **Tigris** (Fly-native, S3-compatible) — default; **Cloudflare R2** as the free-egress alternative | Object storage for images; S3 API means identical code either way |
 | Image pipeline | **`sharp`** in the Next.js server | Resize, WebP, thumbnail, EXIF extraction (NFR-OPT) — runs in-process on Fly |
+| Video pipeline | **none — the browser, then straight to storage** | D23: no transcoder. The uploader's browser produces the poster frame (`FR-VIDEO-3`) and the file is stored as uploaded. Deliberately avoids putting ffmpeg on a shared 1 GB machine, and avoids a transcoding vendor |
+| Archive building | **`client-zip`** in the browser | D24: assembles download `.zip`s client-side (`FR-DL-5`), so image bytes are never proxied through the app. ~3 KB, no dependencies, store-only — which is right for already-compressed WebP/MP4 |
 | DB access / migrations | **Drizzle ORM** | Type-safe queries + migrations against Neon |
 | Validation | **Zod** | Validate all inputs at the server boundary |
 | Email | **Resend** | Verification, reset, share notifications |
@@ -215,14 +217,17 @@ create table photos (
   id uuid primary key default gen_random_uuid(),
   memory_id uuid not null references memories(id) on delete cascade,
   uploaded_by text not null references profiles(id),
-  storage_key text not null,                   -- key for optimized image (Tigris/R2)
-  thumbnail_key text not null,                 -- key for thumbnail
+  -- D23: photos and videos share this table; only decode/playback differ
+  media_type text not null default 'image' check (media_type in ('image','video')),
+  storage_key text not null,                   -- optimized image, or the video file as uploaded
+  thumbnail_key text not null,                 -- thumbnail, or the video's poster frame
   original_filename text,
-  mime_type text not null,
+  mime_type text not null,                     -- image/webp, video/mp4, video/webm
   width int, height int,
   optimized_size_bytes bigint,
   original_size_bytes bigint,
-  taken_at timestamptz,                        -- from EXIF, extracted before stripping
+  duration_seconds int,                        -- FR-VIDEO-5; null for images
+  taken_at timestamptz,                        -- from EXIF, extracted before stripping; null for video
   sort_order int not null default 0,
   status text not null default 'ready' check (status in ('uploading','ready','failed')),
   created_at timestamptz not null default now()
@@ -326,6 +331,48 @@ Serve images from the storage public URL/CDN — never proxy through the app.
 
 ---
 
+## 7a. Video pipeline (FR-VIDEO-*, D23)
+
+There isn't one, server-side, and that is the design. `sharp` cannot decode video, and the two ways to get a real pipeline — ffmpeg in-process on the single Fly machine, or a transcoding vendor — cost either request-serving capacity or a new vendor and cost line. D23 takes neither.
+
+In `/api/photos`, the same route as photos:
+
+1. **Sniff the bytes** (`lib/video.ts`) — WebM's EBML magic, or an ISO-BMFF `ftyp` box with a web-playable MP4 brand. The client's `file.type` is not trusted. HEIC/HEIF brands share the `ftyp` box and are deliberately excluded, so an iPhone still photo is never mistaken for a video.
+2. **Reject video on the guest path** (`FR-VIDEO-7`) — D21 opened the unauthenticated write for 25 MB photos, not 100 MB videos.
+3. **Require the poster frame** the client captured (`lib/video-capture.ts`): the browser decodes the file, seeks ~1s in, draws to a canvas, and sends the frame as JPEG. **No poster means no upload** — a file this browser can't decode is one it couldn't have played.
+4. **Run the poster through `sharp`** (`processPoster`) for the ~400px WebP thumbnail. Its pixel dimensions *are* the video's, so width/height come from here rather than from a client-asserted number.
+5. **`PUT` the video unmodified** plus the poster; store `media_type='video'`, the mime type, and the Zod-bounded `duration_seconds`.
+
+Consequences to keep in mind, all stated in the requirements rather than left implicit:
+
+- **The stored file IS the original.** D5's "discard the original" is an image-only rule; NFR-OPT likewise.
+- **Video metadata is not stripped** (`FR-VIDEO-6`), unlike EXIF on photos. The user is told.
+- **`taken_at` is null for video.** Container creation times are absent or zeroed too often to beat the upload-time fallback in FR-PHOTO-7.
+- The 100 MB cap is load-bearing, not cosmetic: the route buffers the whole body, on a 1 GB machine, at upload concurrency 2.
+
+---
+
+## 7b. Download pipeline (FR-DL-*, D24)
+
+Also not on the server. `lib/download.ts` runs in the browser:
+
+1. It is handed the `MemoryPhoto[]` the page already rendered — **never an id, never a fetch to our API**. Whatever the scoped access helper (or `getPublicMemory`) authorised is exactly what can be downloaded, so this adds no access path to review.
+2. Size and count ceilings are checked **before** anything is fetched (`FR-DL-7`).
+3. Each asset is fetched from its CDN URL, sequentially, so progress means something and a 300-file memory doesn't fire 300 parallel requests.
+4. `client-zip` streams the entries into an archive; the blob is handed to an `<a download>`.
+
+**The deployment step this creates:** `<img>` can load a cross-origin file without permission; `fetch` cannot. The bucket needs a CORS rule or downloads fail while everything else works — a confusing failure to diagnose after the fact. Run once per bucket, and again whenever an origin changes:
+
+```bash
+npm run storage:cors -- https://memories.ghenadie-berco.com
+```
+
+⚠️ **Name the production origin explicitly.** The script defaults to `NEXT_PUBLIC_APP_URL`, which in a developer's `.env.local` is `http://localhost:3000` — so running it bare authorises development and silently leaves production broken. `PutBucketCors` **replaces** the rule set rather than appending to it, and dev and production share one bucket, so every run must list every origin.
+
+It grants `GET`/`HEAD` and nothing else. It does not widen access: the objects are already world-readable by URL, which is how the CDN serves them at all (NFR-PRIV §5.5). See `scripts/set-bucket-cors.ts`.
+
+---
+
 ## 8. Phased build plan
 
 ### Phase 0 — Foundation
@@ -347,6 +394,16 @@ Share with another user at `viewer`/`contributor`; "Shared with me"; owner sees 
 ### Phase 4 — Social (FR-SOC-*)
 Comments and likes on photos (D9), manual people-tagging with removal/self-removal usable as an in-memory filter. All gated by the same access helper; guests via public link cannot interact.
 **Acceptance:** a member can comment, like, and tag within a shared memory; guests cannot; filtering by a tagged person works.
+
+> **Phase 4 is empty by decision (D20).** The phases below were added after the phased plan was written, at the owner's request, and are numbered to say so.
+
+### Phase 5 — Owner-requested additions (post-plan)
+Guest photo contributions (D21), multi-select bulk delete, and the admin console with global maintenance mode (D22).
+**Acceptance:** confirmed working by the owner.
+
+### Phase 6 — Download, video, and the enlarged viewer (FR-DL-*, FR-VIDEO-*, FR-VIEW-8/9)
+The first three deferred `FF-*` items, promoted and specified on 10 August 2026. Download assembled in the browser with size ceilings, guests included (Section 7b, D24). Video stored as uploaded with a browser-captured poster, photos-only for guests (Section 7a, D23). Viewer enlarged to the available viewport, plus zoom, pan, pinch and a Fit control for images — video plays instead, with its own controls.
+**Acceptance:** upload an MP4 and see it marked and playable in the grid and viewer; zoom and pan a photo, then Fit; download one item, a selection, and a whole memory as a correctly-named `.zip`; do the same as a guest on a public link; confirm a guest **cannot** upload video. **Requires `npm run storage:cors` to have been run against the bucket** — downloads fail without it while everything else works.
 
 ---
 
@@ -383,6 +440,8 @@ Comments and likes on photos (D9), manual people-tagging with removal/self-remov
     ```
   - ⚠️ **Cross-schema joins need a cast.** `neon_auth.user.id` is `uuid`; `profiles.id` is `text`. Postgres has no implicit `uuid = text`, so every join needs `u.id::text` — this broke the admin console's user list on first run.
 - **D14 Share acceptance:** sharing with an **existing** user writes `status = 'accepted'` directly; the email is a notification, not a gate (this is what makes Phase 3's "a second account sees it under Shared with me" true). Only **D13 email invites** start `pending`, flipping to `accepted` when the address is claimed at sign-up. The access helper grants on `'accepted'` alone. *(Resolves the gap where nothing ever left the schema's `'pending'` default.)*
+- **D23 Video: stored as uploaded, not transcoded.** Resolves the fork the deferred `FF-VIDEO` item said had to be settled before any code. Rejected: **ffmpeg on the Fly machine** (competes with request serving on one shared 1 GB VM, blows the route's time budget, and realistically needs a job queue and a "processing" tile state) and an **external transcoder** (best output, but a new vendor, a monthly cost line, secrets, and a webhook path). Chosen instead: accept only what a browser already plays — **MP4 and WebM** — cap hard at **100 MB** (separate from D6's 25 MB photo cap), and take the poster frame from the uploader's browser (`FR-VIDEO-3`), which doubles as proof the file is playable. Consequences, all made explicit rather than left to be discovered: **D5 does not apply to video** — there is no derived copy, so the stored file *is* the original; **video metadata is not stripped** the way EXIF is, and `FR-VIDEO-6` says so to the user; **`taken_at` is null**, so video sorts by upload time; and **guests cannot upload video** (`FR-VIDEO-7`), because D21 sized the unauthenticated write path for 25 MB photos and widening it to 100 MB anonymous uploads was never what the owner opted into. **Open risks: no server-side content validation beyond container sniffing, and no way to shrink a video a user uploads at full phone resolution.**
+- **D24 Download: assembled in the browser, and guests may download.** Two decisions the deferred `FF-DL` item flagged. **(a) Where the zip is built:** in the browser, from the CDN URLs the page already holds (`FR-DL-5`), rather than streamed from a server route — which would have moved image bytes through the app and needed an explicit carve-out from a stated non-negotiable. This also means download introduces **no new server route and no new access path**: it can only reach what was already rendered to that viewer. **(b) Guest access:** guests on a public link **can** download, at the owner's decision, amending `FR-SHARE-9`. The deferred item recommended off-by-default with a per-memory opt-in; the owner chose always-on, which needs no schema column and keeps the public page's controls the same as the owner's. It stays a read that reaches no further than the page itself, and revoking the link ends both together. **Costs: the bucket now needs a CORS rule (`npm run storage:cors`) or downloads fail silently while everything else works**, and the archive is assembled in memory, hence the 300-item / ~500 MB ceilings in `FR-DL-7`.
 
 ---
 
@@ -392,7 +451,10 @@ Comments and likes on photos (D9), manual people-tagging with removal/self-remov
 - [ ] Guest route (`/m/[token]`) uses a privileged connection **server-side only** and returns read-only data; no privileged credentials reach the browser.
 - [ ] All request bodies validated with Zod at the server boundary.
 - [ ] `public_token` is high-entropy and unguessable; revoke sets `public_link_active = false` and takes effect immediately.
-- [ ] Images served from the Tigris/R2 CDN, not proxied through the app.
+- [ ] Images served from the Tigris/R2 CDN, not proxied through the app. **Downloads too** — the archive is built in the browser (D24), so no route should ever stream image or video bytes.
+- [ ] Exactly **one** unauthenticated write path exists (guest photo upload, D21), it is rate-limited, and it **rejects video** (`FR-VIDEO-7`). Adding a second, or widening this one, is a defect.
+- [ ] Uploaded media is identified by **sniffing its bytes**, never by the client's `mime_type` — for video (`lib/video.ts`) as well as images.
+- [ ] Bucket CORS grants `GET`/`HEAD` to the app origin only, and no write method.
 - [ ] Passwords, verification, reset, lockout handled by Neon Auth (not custom code).
 - [ ] HTTPS enforced (Fly TLS + custom domain); all secrets set via `fly secrets`, none in the repo.
 - [ ] Deleting a memory/photo removes the corresponding storage objects (no orphans).
@@ -418,6 +480,7 @@ Step-by-step runbook. Run once to set up, then `fly deploy` for every release.
 1. Create a bucket: `fly storage create` (this provisions Tigris and returns S3 credentials + the `https://fly.storage.tigris.dev` endpoint).
 2. Set `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_REGION=auto`, and a public `S3_PUBLIC_URL` for serving images.
    - *R2 alternative:* create an R2 bucket + S3 API token, set the same variables with R2's endpoint and a public custom domain.
+3. **Set the bucket's CORS rule — `npm run storage:cors -- https://your-app-domain`** (D24). Required by download (`FR-DL-5`), which reads objects with `fetch` rather than an `<img>` tag. **This is easy to forget and fails quietly:** every other feature works, and only downloading breaks, with a browser console error rather than an app-level one. Pass the production origin explicitly — see Section 7b for why running it bare is a trap.
 
 ### 11.4 App container
 `next.config.js`:

@@ -11,13 +11,15 @@
     "db:migrate": "tsx db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "typecheck": "next typegen && tsc --noEmit",
-    "db:bundle-migrate": "node scripts/bundle-migrate.mjs"
+    "db:bundle-migrate": "node scripts/bundle-migrate.mjs",
+    "storage:cors": "tsx scripts/set-bucket-cors.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",
     "@base-ui/react": "^1.7.0",
     "@neondatabase/auth": "^0.4.2-beta",
     "class-variance-authority": "^0.7.1",
+    "client-zip": "^2.5.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "exifr": "^7.1.3",

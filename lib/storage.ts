@@ -49,15 +49,20 @@ export function randomKeySegment(): string {
 }
 
 /**
- * Build a storage key for a photo asset.
- * Shape: `memories/<memoryId>/<random>-<variant>.webp`
+ * Build a storage key for a photo or video asset.
+ * Shape: `memories/<memoryId>/<random>-<variant>.<ext>`
+ *
+ * The extension is explicit because a video's `full` object is an mp4 or webm
+ * while its `thumb` (the poster) is still WebP — the two variants of one item no
+ * longer share a format (FR-VIDEO-3).
  */
 export function photoKey(
   memoryId: string,
   variant: "full" | "thumb",
   segment: string = randomKeySegment(),
+  extension = "webp",
 ): string {
-  return `memories/${memoryId}/${segment}-${variant}.webp`;
+  return `memories/${memoryId}/${segment}-${variant}.${extension}`;
 }
 
 export async function putObject(

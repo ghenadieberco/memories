@@ -101,7 +101,7 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 | ID | Requirement |
 |---|---|
 | FR-PHOTO-1 | The user shall be able to **upload one or more photos** into a specific memory. |
-| FR-PHOTO-2 | The system shall accept common image formats (JPEG, PNG, WebP, HEIC — *format list to confirm*) and reject unsupported or oversized files with a clear error. |
+| FR-PHOTO-2 | The system shall accept common image formats (JPEG, PNG, WebP, HEIC — *format list to confirm*) and reject unsupported or oversized files with a clear error. **Video formats are separate — see FR-VIDEO-1.** |
 | FR-PHOTO-3 | On upload, the system shall **automatically optimize** each image (resize + compress) and generate a **thumbnail** — see NFR-OPT. |
 | FR-PHOTO-4 | Uploaded image files shall be stored in object storage; only metadata and file references are stored in the database. |
 | FR-PHOTO-5 | The system shall show upload progress and handle partial failures gracefully (per-file success/failure). |
@@ -119,6 +119,36 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 | FR-VIEW-5 | Forward/Back controls shall be disabled (or hidden) at the first/last photo (no wraparound by default — to confirm). |
 | FR-VIEW-6 | The viewer shall provide a **Close** control returning the user to the thumbnail grid at the same scroll position. |
 | FR-VIEW-7 | The viewer shall scale each image to fit the screen while preserving aspect ratio. |
+| FR-VIEW-8 | The viewer shall give the image **as much of the viewport as the layout allows** rather than a fixed small box. The media's height shall be bounded by the space remaining after the viewer's own controls and counter, so that growing the image can never push a control off-screen. At rest an image shall still not be upscaled beyond its own pixels (FR-VIEW-7), which on a large display makes the stored ~2048px asset — not the CSS — the limit. |
+| FR-VIEW-9 | The viewer shall provide **zoom** for images: on-screen zoom-in / zoom-out controls, a **Fit** control returning to fit-to-screen, the current level shown as a percentage, and zoom by scroll wheel, pinch, and double-tap. While zoomed, the user shall be able to **pan** by dragging, and the image shall be clamped so its edges cannot be dragged inside the frame. Keyboard: `+` / `-` to zoom, `0` to fit. Zoom shall reset when the viewer moves to another item. **Zoom deliberately overrides FR-VIEW-7's no-upscaling rule** — that rule governs the default presentation; magnifying past 100% is an explicit user request, capped at 4×. **Zoom does not apply to video** (FR-VIDEO-2), which supplies its own control bar. |
+
+### 3.5a Video
+
+Added 10 August 2026, promoted from the deferred backlog (`FF-VIDEO`). The governing decision is **D23**: videos are **stored as uploaded, not transcoded**. See the implementation plan Section 9 for why, and Section 7a for how.
+
+| ID | Requirement |
+|---|---|
+| FR-VIDEO-1 | The user shall be able to **upload videos into a memory** alongside photos, through the same control and into the same grid. Accepted formats are **MP4 and WebM**; anything else is rejected with a clear error. The video size limit is **separate from and larger than the photo limit** (D6): **100 MB per file**. |
+| FR-VIDEO-2 | The fullscreen viewer shall **play a video in place**, with standard playback controls (play/pause, seek, volume). Keyboard navigation shall yield to the video while it holds focus, so that arrow keys scrub rather than change item. |
+| FR-VIDEO-3 | The system shall store a **poster frame** for each video, produced by decoding the file **in the uploader's browser** and captured before upload. A file from which no poster can be produced shall be **rejected at upload**, since a browser that cannot decode it could not have played it either. The poster is optimized to a thumbnail server-side by the existing image pipeline, and doubles as the video's grid tile and cover-eligible image. |
+| FR-VIDEO-4 | The grid shall **mark a video as a video** — a play affordance on the tile and its duration — so it is distinguishable from a photo without opening it. Counts that describe a memory shall not call a video a photo (extends FR-MEM-8). |
+| FR-VIDEO-5 | The system shall record a video's **duration** for display. The value originates from the client's own decode and shall be bounded server-side; it is presentational, and its absence shall never block an otherwise valid upload. |
+| FR-VIDEO-6 | **Video files are stored unmodified, and their embedded metadata is therefore NOT stripped** — unlike photos, where NFR-OPT removes EXIF including GPS. This is a consequence of D23 having no transcoder, and shall be **stated to the user** rather than left implicit. `taken_at` is not read from video containers; videos order by upload time (FR-PHOTO-7). |
+| FR-VIDEO-7 | **Guests uploading through a public link may not upload video** (narrowing FR-SHARE-9's D21 amendment). The guest write path was opened for photos at a 25 MB cap and is not widened to 100 MB anonymous uploads. Enforced server-side, not merely omitted from the guest UI. |
+
+### 3.5b Download
+
+Added 10 August 2026, promoted from the deferred backlog (`FF-DL`). The governing decision is **D24**: archives are **assembled in the browser**, and **guests may download**.
+
+| ID | Requirement |
+|---|---|
+| FR-DL-1 | The user shall be able to **download the single photo or video** currently open in the fullscreen viewer, as one file with no archive. |
+| FR-DL-2 | The user shall be able to **download a selection** of items as a single `.zip`, reusing the existing multi-select mode rather than introducing a second selection gesture. |
+| FR-DL-3 | The user shall be able to **download a whole memory** as a single `.zip`, in display order (FR-PHOTO-7). |
+| FR-DL-4 | An archive shall be named after the memory in the FR-MEM-2 form — `Title - (Formatted Date).zip` — and entries within it shall be **position-prefixed** so display order survives extraction and two identically-named uploads cannot collide. |
+| FR-DL-5 | Downloads shall be **assembled client-side from the storage CDN URLs the page already holds**, never proxied through the application (NFR-SEC / plan Section 10). This adds no server route and no new access path: the download can only ever reach the items already rendered to that viewer, which the scoped access helper — or `getPublicMemory` for a guest — has already authorised. It requires **CORS to be configured on the storage bucket**, which is a deployment step. |
+| FR-DL-6 | The UI shall not promise an original the system does not have. For a **photo** the download is the **stored optimized copy**, the camera original having been discarded at upload (D5); for a **video** it is the **file exactly as uploaded** (D23). |
+| FR-DL-7 | Downloads shall show **progress** while being prepared, and shall **refuse a selection too large to assemble** — over **300 items** or about **500 MB** — with a message telling the user to take it in batches. A silent multi-hundred-megabyte download is a bad outcome on mobile. |
 
 ### 3.6 Sharing & collaboration
 
@@ -132,7 +162,7 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 | FR-SHARE-6 | The system shall notify a user (in-app and/or email) when a memory is shared with them. |
 | FR-SHARE-7 | Each memory shall be assigned an **unguessable public-link token** when it is first created. The owner shall be able to share this **public link** to grant view-only access. |
 | FR-SHARE-8 | A person who opens a valid public link **without signing in (a guest)** shall be able to view the memory album — its title, formatted date, photo thumbnail grid, and the fullscreen viewer. |
-| FR-SHARE-9 | Guest access via a public link is **read-only by default**: a guest cannot edit or delete photos; cannot comment, like, or tag; cannot see the owner's other memories; and cannot reach any account or settings features. **Amended (D21):** the owner may switch on **"Let anyone with the link add photos"** for an individual memory, which permits guests to *upload* to that one memory. Off by default; every other restriction above still applies. |
+| FR-SHARE-9 | Guest access via a public link is **read-only by default**: a guest cannot edit or delete photos; cannot comment, like, or tag; cannot see the owner's other memories; and cannot reach any account or settings features. **Amended (D21):** the owner may switch on **"Let anyone with the link add photos"** for an individual memory, which permits guests to *upload* photos — not video (FR-VIDEO-7) — to that one memory. Off by default. **Amended (D24):** guests **may download** what they can already see (FR-DL-1/2/3). Downloading is a read that reaches no further than the page itself, and revoking the link ends both at once. Every other restriction above still applies. |
 | FR-SHARE-10 | The owner shall be able to **revoke or regenerate** a memory's public link at any time; revoking immediately invalidates the previous link so it no longer opens the album. |
 | FR-SHARE-11 | Every access check shall grant access only if the requester is the **owner**, an **active member** with sufficient permission, or a **guest presenting a valid, non-revoked public link** (view-only). |
 
@@ -208,16 +238,20 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 
 ### 4.3 Photo
 
+Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). One table rather than two because everything around a row — ordering, access checks, cover resolution, deletion, the grid — treats them identically; only decoding and playback differ, and those are decided by `media_type`.
+
 | Field | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
 | `memory_id` | UUID (FK → Memory) | Parent bucket |
 | `user_id` | UUID (FK → User) | Owner (denormalized for authorization) |
-| `storage_key` | string | Object-storage key for the optimized image |
-| `thumbnail_key` | string | Object-storage key for the thumbnail |
+| `media_type` | enum | `image` / `video` (`FR-VIDEO-1`). Defaults to `image`, so rows predating video support keep their meaning with no backfill |
+| `storage_key` | string | Object-storage key for the optimized image — or, for a video, the video file exactly as uploaded (D23) |
+| `thumbnail_key` | string | Object-storage key for the thumbnail — or, for a video, its poster frame (`FR-VIDEO-3`). Always an image either way |
 | `original_filename` | string | As uploaded |
-| `mime_type` | string | e.g., `image/webp` |
-| `width` / `height` | int | Of the optimized image |
+| `mime_type` | string | e.g., `image/webp`, `video/mp4`, `video/webm` |
+| `width` / `height` | int | Of the optimized image; for a video, of the poster frame, which is the video's own frame size |
+| `duration_seconds` | int, nullable | Playback length (`FR-VIDEO-5`). Null for images, and for videos whose duration the browser could not report |
 | `optimized_size_bytes` | int | After optimization |
 | `original_size_bytes` | int | Before optimization (optional, useful for reporting) |
 | `uploaded_by` | UUID (FK → User) | Who uploaded it (may differ from memory owner in a shared memory) |

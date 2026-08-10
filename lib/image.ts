@@ -100,6 +100,57 @@ async function readTakenAt(buffer: Buffer): Promise<Date | null> {
   }
 }
 
+/**
+ * Turn a client-captured video poster frame into a stored thumbnail
+ * (FR-VIDEO-3).
+ *
+ * The frame arrives as a canvas export from the uploader's browser, which is
+ * also where the only decode of the video happens (D23). Two things follow:
+ *
+ *   - it is untrusted input like any other upload, so it goes through sharp,
+ *     which rejects anything that isn't really an image;
+ *   - its pixel dimensions ARE the video's dimensions, so the aspect ratio the
+ *     grid and viewer need comes back from here for free rather than from a
+ *     number the client could simply assert.
+ *
+ * Only the ~400px thumbnail is kept. A video has no "optimized full-size
+ * image" to pair with it — the video file itself fills that role.
+ */
+export async function processPoster(input: Buffer): Promise<{
+  thumbnail: Buffer;
+  width: number;
+  height: number;
+  mimeType: "image/webp";
+}> {
+  if (input.length === 0) {
+    throw new UnsupportedImageError("We couldn't read that video's first frame.");
+  }
+  if (input.length > MAX_UPLOAD_BYTES) {
+    throw new UnsupportedImageError("That video's preview frame is too large.");
+  }
+
+  try {
+    const source = sharp(input, { failOn: "none" });
+    const { width = 0, height = 0 } = await source.metadata();
+
+    const thumbnail = await source
+      .clone()
+      .resize({
+        width: THUMB_EDGE,
+        height: THUMB_EDGE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer();
+
+    return { thumbnail, width, height, mimeType: "image/webp" };
+  } catch (error) {
+    if (error instanceof UnsupportedImageError) throw error;
+    throw new UnsupportedImageError("We couldn't read that video's first frame.");
+  }
+}
+
 export async function processImage(input: Buffer): Promise<ProcessedImage> {
   const originalSizeBytes = input.length;
 

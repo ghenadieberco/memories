@@ -7,7 +7,7 @@ import { PhotoGrid } from "./photo-grid";
 import { SharePanel } from "./share-panel";
 import { AccessDeniedError } from "@/lib/access";
 import { appEnv } from "@/lib/env";
-import { formatMemoryDate, photoCountLabel } from "@/lib/format";
+import { formatMemoryDate, mediaCountLabel } from "@/lib/format";
 import { getMemoryDetail } from "@/lib/memories";
 import { requireProfile } from "@/lib/profile";
 import { listMembers } from "@/lib/sharing";
@@ -59,7 +59,10 @@ export default async function MemoryDetailPage({
             ({formatMemoryDate(memory.memoryDate)})
           </p>
           <p className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
-            {photoCountLabel(photos.length)}
+            {mediaCountLabel(
+              photos.filter((photo) => photo.mediaType === "image").length,
+              photos.filter((photo) => photo.mediaType === "video").length,
+            )}
           </p>
         </div>
 
@@ -84,6 +87,8 @@ export default async function MemoryDetailPage({
 
       <PhotoGrid
         memoryId={memory.id}
+        memoryTitle={memory.title}
+        memoryDate={memory.memoryDate}
         photos={photos}
         canAddPhotos={canAddPhotos}
         canSetCover={canEdit}
