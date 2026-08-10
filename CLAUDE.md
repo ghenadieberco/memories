@@ -45,7 +45,8 @@ The `docs/` folder is the source of truth for this project. **Before writing or 
 These come from the requirements' security/privacy sections and the plan's Section 10 checklist. Violating one is a bug regardless of what a task asks for:
 
 - **Every authenticated DB access goes through the scoped access helper** (owner / accepted member / permission level). Never query a memory or photo by id alone.
-- **The guest public route `/m/[token]` is the only unauthenticated data path.** It runs server-side only, selects strictly by `public_token` + `public_link_active`, and returns read-only data for that single memory. No privileged credentials ever reach the browser.
+- **The guest public route `/m/[token]` is the only unauthenticated *read* path.** It runs server-side only, selects strictly by `public_token` + `public_link_active`, and returns data for that single memory. No privileged credentials ever reach the browser.
+- **There is exactly one unauthenticated *write* path: guest photo upload (D21)**, and it stays that way. It is allowed only via `getPublicMemoryForContribution()`, which additionally requires the owner's per-memory `public_can_contribute` opt-in, and it is rate-limited. Never add a second unauthenticated write, and never widen this one to editing or deleting. Guest uploads have `uploaded_by = NULL`, so only the memory owner can delete them.
 - **Validate every request body with Zod at the server boundary.**
 - **Image optimization is mandatory and not user-configurable** (`NFR-OPT`, `FR-PROF-4`): resize to longest edge ~2048 + WebP q~80, generate a ~400px thumbnail, extract EXIF `taken_at` **before** stripping metadata, discard the original (D5).
 - **Serve images from the Tigris/R2 public URL/CDN** — never proxy image bytes through the app.

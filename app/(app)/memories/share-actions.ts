@@ -240,3 +240,40 @@ export async function regeneratePublicLinkAction(formData: FormData): Promise<Fo
   revalidatePath(`/memories/${memoryId}`);
   return { notice: "New link created. The old one no longer works." };
 }
+
+/**
+ * D21 — allow or stop guests adding photos through the public link.
+ *
+ * This is the one switch in the app that opens an unauthenticated write path,
+ * so it is per-memory, off by default, and owner-only. Turning the public link
+ * off disables contributions too, since `getPublicMemoryForContribution`
+ * requires both flags.
+ */
+export async function togglePublicContributeAction(
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireProfile();
+
+  const parsed = memoryIdSchema.safeParse({ memoryId: formData.get("memoryId") });
+  if (!parsed.success) return toFormState(parsed.error);
+
+  const { memoryId } = parsed.data;
+  const allow = formData.get("allow") === "true";
+
+  try {
+    await assertOwnsMemory(user.id, memoryId);
+    await db
+      .update(memories)
+      .set({ publicCanContribute: allow, updatedAt: new Date() })
+      .where(eq(memories.id, memoryId));
+  } catch (error) {
+    return shareError(error, "We couldn't update that setting.");
+  }
+
+  revalidatePath(`/memories/${memoryId}`);
+  return {
+    notice: allow
+      ? "Anyone with the link can now add photos."
+      : "Guests can view but not add photos.",
+  };
+}

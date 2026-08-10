@@ -27,7 +27,8 @@ export type MemoryPhoto = {
   thumbnailUrl: string;
   width: number | null;
   height: number | null;
-  uploadedBy: string;
+  /** NULL for an anonymous guest upload via a public link (D21). */
+  uploadedBy: string | null;
 };
 
 /**

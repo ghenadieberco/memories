@@ -135,7 +135,7 @@ A user signs in, creates a **memory** (a named album tied to a date, displayed a
 | FR-SHARE-6 | The system shall notify a user (in-app and/or email) when a memory is shared with them. |
 | FR-SHARE-7 | Each memory shall be assigned an **unguessable public-link token** when it is first created. The owner shall be able to share this **public link** to grant view-only access. |
 | FR-SHARE-8 | A person who opens a valid public link **without signing in (a guest)** shall be able to view the memory album — its title, formatted date, photo thumbnail grid, and the fullscreen viewer. |
-| FR-SHARE-9 | Guest access via a public link is strictly **read-only**: a guest cannot add, edit, or delete photos; cannot comment, like, or tag; cannot see the owner's other memories; and cannot reach any account or settings features. |
+| FR-SHARE-9 | Guest access via a public link is **read-only by default**: a guest cannot edit or delete photos; cannot comment, like, or tag; cannot see the owner's other memories; and cannot reach any account or settings features. **Amended (D21):** the owner may switch on **"Let anyone with the link add photos"** for an individual memory, which permits guests to *upload* to that one memory. Off by default; every other restriction above still applies. |
 | FR-SHARE-10 | The owner shall be able to **revoke or regenerate** a memory's public link at any time; revoking immediately invalidates the previous link so it no longer opens the album. |
 | FR-SHARE-11 | Every access check shall grant access only if the requester is the **owner**, an **active member** with sufficient permission, or a **guest presenting a valid, non-revoked public link** (view-only). |
 
@@ -295,7 +295,8 @@ A user signs in, creates a **memory** (a named album tied to a date, displayed a
 - Store secrets and storage credentials outside source control (environment/secret manager).
 - Serve uploaded images via signed/scoped URLs so files are not publicly enumerable.
 - Enforce authorization on every request: access to a memory (and its photos, comments, likes, and tags) requires being the **owner**, an **active shared member** with sufficient permission, or a **guest with a valid, active public link** (view-only) — all other access is denied.
-- **Public links** shall use a high-entropy, unguessable token (so albums cannot be discovered by guessing) and shall be **revocable**; a revoked link must stop working immediately. Guest access resolved from a public link is scoped strictly to that single memory and is read-only, including for image URLs served to guests.
+- **Public links** shall use a high-entropy, unguessable token (so albums cannot be discovered by guessing) and shall be **revocable**; a revoked link must stop working immediately. Guest access resolved from a public link is scoped strictly to that single memory.
+- **Guest uploads (D21).** When — and only when — the owner has explicitly enabled it for a memory, a guest holding the link may upload photos to that memory. This is an **unauthenticated write path** and carries risks the read-only design did not: anyone the link is forwarded to can add content, uploads have no attributable author (`photos.uploaded_by` is NULL), and storage is consumed at the owner's expense. Mitigations in place: opt-in per memory and off by default, disabled whenever the link itself is disabled, the same format/size validation as authenticated uploads, and per-IP rate limiting. **Not** mitigated: content moderation, and a durable (multi-instance) rate limit — both belong in the hardening pass.
 
 ### 5.2 Image optimization (NFR-OPT)
 - Optimization is **enabled by default and cannot be disabled by the user** (read-only setting).

@@ -70,6 +70,7 @@ export default async function MemoryDetailPage({
               members={members}
               publicUrl={publicUrl}
               publicLinkActive={memory.publicLinkActive}
+              publicCanContribute={memory.publicCanContribute}
             />
             <MemoryActions
               memoryId={memory.id}

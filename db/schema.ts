@@ -88,6 +88,16 @@ export const memories = pgTable(
       .default(sql`encode(gen_random_bytes(16), 'hex')`),
     /** D8: active from creation. FR-SHARE-10 revoke sets this false. */
     publicLinkActive: boolean("public_link_active").notNull().default(true),
+    /**
+     * D21 — lets anyone holding the public link ADD photos, not just view.
+     *
+     * Off by default and per-memory: this is the only setting in the app that
+     * opens an unauthenticated write path, so it must always be a deliberate,
+     * explicit act by the owner. Amends FR-SHARE-9.
+     */
+    publicCanContribute: boolean("public_can_contribute")
+      .notNull()
+      .default(false),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -116,10 +126,14 @@ export const photos = pgTable(
     memoryId: uuid("memory_id")
       .notNull()
       .references(() => memories.id, { onDelete: "cascade" }),
-    /** May differ from the memory owner in a shared memory (D10). */
-    uploadedBy: text("uploaded_by")
-      .notNull()
-      .references(() => profiles.id),
+    /**
+     * May differ from the memory owner in a shared memory (D10).
+     *
+     * NULL means an anonymous guest upload via a public link (D21). Since there
+     * is no account behind it, D10's "contributors may delete their own
+     * uploads" cannot apply — only the memory owner can delete a guest upload.
+     */
+    uploadedBy: text("uploaded_by").references(() => profiles.id),
 
     /** Object-storage keys. High-entropy so URLs are not enumerable. */
     storageKey: text("storage_key").notNull(),

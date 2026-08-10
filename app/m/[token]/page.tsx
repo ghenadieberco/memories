@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { GuestUploader } from "./guest-uploader";
 import { PublicGallery } from "./public-gallery";
 import { Wordmark } from "@/components/wordmark";
 import { getPublicMemory } from "@/lib/access";
@@ -72,6 +73,12 @@ export default async function PublicMemoryPage({
             {photoCountLabel(photos.length)} · shared album
           </p>
         </div>
+
+        {/*
+          D21 — only when the owner opted in. The server re-checks the flag on
+          every upload, so rendering this is a convenience, not the gate.
+        */}
+        {memory.publicCanContribute && <GuestUploader token={token} />}
 
         <PublicGallery photos={photos} />
 

@@ -126,6 +126,11 @@ export const photoIdSchema = z.object({
   photoId: z.string().uuid(),
 });
 
+/** Bulk delete. Capped so one request can't try to delete an entire library. */
+export const photoIdsSchema = z.object({
+  photoIds: z.array(z.string().uuid()).min(1, "Select at least one photo.").max(200),
+});
+
 // --- Sharing (FR-SHARE-*) --------------------------------------------------
 
 export const permissionSchema = z.enum(["viewer", "contributor"]);

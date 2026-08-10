@@ -146,3 +146,34 @@ export async function getPublicMemory(token: string) {
 
   return rows[0] ?? null;
 }
+
+/**
+ * D21 — the guest WRITE path. The only unauthenticated way to create data.
+ *
+ * Deliberately a separate function from `getPublicMemory`, not a flag on it.
+ * Read access and write access to a public album are different privileges, and
+ * a caller has to reach for this one by name to get the write privilege — no
+ * boolean argument anyone could pass wrongly.
+ *
+ * Returns the memory only when ALL THREE hold:
+ *   - the token matches
+ *   - the link is active (revoking kills contributions too, FR-SHARE-10)
+ *   - the owner explicitly opted in to guest contributions
+ */
+export async function getPublicMemoryForContribution(token: string) {
+  if (!token) return null;
+
+  const rows = await db
+    .select()
+    .from(memories)
+    .where(
+      and(
+        eq(memories.publicToken, token),
+        eq(memories.publicLinkActive, true),
+        eq(memories.publicCanContribute, true),
+      ),
+    )
+    .limit(1);
+
+  return rows[0] ?? null;
+}

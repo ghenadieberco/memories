@@ -7,6 +7,7 @@ import {
   regeneratePublicLinkAction,
   revokeShareAction,
   shareMemoryAction,
+  togglePublicContributeAction,
   togglePublicLinkAction,
   updatePermissionAction,
 } from "../share-actions";
@@ -28,11 +29,13 @@ export function SharePanel({
   members,
   publicUrl,
   publicLinkActive,
+  publicCanContribute,
 }: {
   memoryId: string;
   members: ShareMember[];
   publicUrl: string;
   publicLinkActive: boolean;
+  publicCanContribute: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -204,6 +207,38 @@ export function SharePanel({
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
+
+            {/*
+              D21 — the one control in the app that opens an unauthenticated
+              write path. Off by default, and the copy says plainly what it
+              means rather than hiding behind "allow contributions".
+            */}
+            <label
+              className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-[13px] bg-white/60 p-3"
+              style={{ opacity: publicLinkActive ? 1 : 0.5 }}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 shrink-0 accent-[var(--purple)]"
+                checked={publicCanContribute}
+                disabled={!publicLinkActive}
+                onChange={(event) =>
+                  run(togglePublicContributeAction, {
+                    allow: event.target.checked ? "true" : "false",
+                  })
+                }
+              />
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-ink">
+                  Let anyone with the link add photos
+                </span>
+                <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
+                  They won&apos;t need an account, and their uploads won&apos;t be
+                  attributed to anyone. Only turn this on for a link you&apos;re
+                  happy for strangers to receive.
+                </span>
+              </span>
+            </label>
 
             <div className="mt-2.5 flex flex-wrap gap-2">
               <button

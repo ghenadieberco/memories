@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { CheckSquare, ImagePlus, Loader2, Square, Star, Trash2, X } from "lucide-react";
 
-import { deletePhotoAction, setCoverAction } from "../actions";
+import { deletePhotoAction, deletePhotosAction, setCoverAction } from "../actions";
 import { PhotoViewer } from "@/components/photo-viewer";
 import type { MemoryPhoto } from "@/lib/memories";
 
@@ -38,6 +38,8 @@ export function PhotoGrid({
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +56,31 @@ export function PhotoGrid({
       body.append("photoId", photoId);
       const result = await setCoverAction(body);
       setActionError(result.error ?? null);
+    });
+  }
+
+  function toggleSelected(photoId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(photoId)) next.delete(photoId);
+      else next.add(photoId);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  function deleteSelected() {
+    if (selected.size === 0) return;
+    startTransition(async () => {
+      const body = new FormData();
+      for (const photoId of selected) body.append("photoId", photoId);
+      const result = await deletePhotosAction(body);
+      setActionError(result.error ?? null);
+      if (!result.error) exitSelectMode();
     });
   }
 
@@ -153,6 +180,53 @@ export function PhotoGrid({
         </div>
       )}
 
+      {photos.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {selectMode ? (
+            <>
+              <span className="text-[13px] font-bold text-ink">
+                {selected.size} selected
+              </span>
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() =>
+                  setSelected(
+                    selected.size === photos.length
+                      ? new Set()
+                      : new Set(photos.map((photo) => photo.id)),
+                  )
+                }
+              >
+                {selected.size === photos.length ? "Clear all" : "Select all"}
+              </button>
+              <button
+                type="button"
+                className="btn danger sm"
+                disabled={selected.size === 0}
+                onClick={deleteSelected}
+              >
+                <Trash2 size={15} aria-hidden="true" />
+                Delete {selected.size > 0 ? selected.size : ""}
+              </button>
+              <button type="button" className="btn ghost sm" onClick={exitSelectMode}>
+                <X size={15} aria-hidden="true" />
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn ghost sm"
+              onClick={() => setSelectMode(true)}
+            >
+              <CheckSquare size={15} aria-hidden="true" />
+              Select
+            </button>
+          )}
+        </div>
+      )}
+
       {photos.length === 0 ? (
         <div className="glass flex flex-col items-center rounded-2xl px-6 py-12 text-center">
           <ImagePlus size={36} className="text-purple-l" aria-hidden="true" />
@@ -171,10 +245,23 @@ export function PhotoGrid({
             <div key={photo.id} className="group relative">
               <button
                 type="button"
-                onClick={() => setViewerIndex(index)}
+                onClick={() =>
+                  selectMode ? toggleSelected(photo.id) : setViewerIndex(index)
+                }
                 className="block aspect-square w-full overflow-hidden rounded-lg transition-transform duration-150 hover:scale-[1.035]"
-                style={{ boxShadow: "0 6px 18px rgba(108,43,217,.14)" }}
-                aria-label={`Open photo ${index + 1}`}
+                style={{
+                  boxShadow: "0 6px 18px rgba(108,43,217,.14)",
+                  outline: selected.has(photo.id)
+                    ? "3px solid var(--purple)"
+                    : undefined,
+                  outlineOffset: selected.has(photo.id) ? "2px" : undefined,
+                }}
+                aria-label={
+                  selectMode
+                    ? `${selected.has(photo.id) ? "Deselect" : "Select"} photo ${index + 1}`
+                    : `Open photo ${index + 1}`
+                }
+                aria-pressed={selectMode ? selected.has(photo.id) : undefined}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- CDN-direct by design */}
                 <img
@@ -186,7 +273,28 @@ export function PhotoGrid({
                 />
               </button>
 
-              <div className="pointer-events-none absolute top-1.5 right-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              {selectMode && (
+                <span
+                  className="pointer-events-none absolute top-1.5 left-1.5 grid size-6 place-items-center rounded-md text-white"
+                  style={{
+                    background: selected.has(photo.id)
+                      ? "var(--purple)"
+                      : "rgba(0,0,0,.42)",
+                  }}
+                  aria-hidden="true"
+                >
+                  {selected.has(photo.id) ? (
+                    <CheckSquare size={14} />
+                  ) : (
+                    <Square size={14} />
+                  )}
+                </span>
+              )}
+
+              <div
+                className="pointer-events-none absolute top-1.5 right-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+                hidden={selectMode}
+              >
                 {canSetCover && (
                   <button
                     type="button"

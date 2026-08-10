@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -13,6 +13,7 @@ import {
   createMemorySchema,
   memoryIdSchema,
   photoIdSchema,
+  photoIdsSchema,
   setCoverSchema,
   toFormState,
   updateMemorySchema,
@@ -270,4 +271,60 @@ export async function deletePhotoAction(formData: FormData): Promise<void> {
 
   revalidatePath("/memories");
   revalidatePath(`/memories/${photo.memoryId}`);
+}
+
+/**
+ * FR-PHOTO-6, bulk — delete several photos at once.
+ *
+ * Every id is authorised individually through `assertCanDeletePhoto` (D10), so
+ * slipping someone else's photo id into the list gets that one id rejected
+ * rather than deleted. Photos the caller may not delete are skipped silently:
+ * reporting them would confirm the ids exist.
+ */
+export async function deletePhotosAction(formData: FormData): Promise<FormState> {
+  const user = await requireProfile();
+
+  const parsed = photoIdsSchema.safeParse({
+    photoIds: formData.getAll("photoId").map(String),
+  });
+  if (!parsed.success) return toFormState(parsed.error);
+
+  const keys: string[] = [];
+  const ids: string[] = [];
+  let memoryId: string | null = null;
+
+  for (const photoId of parsed.data.photoIds) {
+    try {
+      const photo = await assertCanDeletePhoto(user.id, photoId);
+      ids.push(photo.id);
+      keys.push(photo.storageKey, photo.thumbnailKey);
+      memoryId ??= photo.memoryId;
+    } catch (error) {
+      if (error instanceof AccessDeniedError) continue;
+      throw error;
+    }
+  }
+
+  if (ids.length === 0) {
+    return { error: "Those photos aren't available." };
+  }
+
+  await db.delete(photos).where(inArray(photos.id, ids));
+
+  try {
+    await deleteObjects(keys);
+  } catch (error) {
+    console.error(`[memories] orphaned ${keys.length} storage objects`, error);
+  }
+
+  revalidatePath("/memories");
+  if (memoryId) revalidatePath(`/memories/${memoryId}`);
+
+  const skipped = parsed.data.photoIds.length - ids.length;
+  return {
+    notice:
+      skipped > 0
+        ? `Deleted ${ids.length} of ${parsed.data.photoIds.length} photos.`
+        : `Deleted ${ids.length} ${ids.length === 1 ? "photo" : "photos"}.`,
+  };
 }
