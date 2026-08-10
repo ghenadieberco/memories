@@ -217,7 +217,7 @@ Icons sit left of the label at 15px, gap 7px. Disabled: opacity .45, no shadow, 
 
 - **Active voice, sentence case, plain verbs.** "Send invite," "Create memory," "Update password" — not "Submit."
 - **An action keeps its name through the flow:** the button that says "Create memory" leads to a toast that says "Memory created."
-- **Name things by what people control,** not the system underneath: "Can view" / "Can add photos" for share roles, not "viewer/contributor DB enum."
+- **Name things by what people control,** not the system underneath: "Can view" / "Can add photos and videos" for share roles, not "viewer/contributor DB enum." And name the *whole* permission — "Can add photos" understated a role that could always add video too, until D25 corrected it.
 - **Empty states invite action** ("Create your first album and drop in the photos from a day you want to keep"), and errors give direction rather than apologize.
 - Keep microcopy short and specific; let each label do exactly one job.
 

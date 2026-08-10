@@ -61,7 +61,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 5. **A still frame is taken from the video by your own browser** and becomes its thumbnail. If your browser can't read the video, the upload is refused right there, so you never end up with a tile that won't play.
 6. **Video files keep their own metadata.** Photos have theirs stripped, including GPS; videos are stored untouched, so anything the camera recorded inside the file stays there. Worth knowing before sharing a link.
 7. **Videos sort by when they were uploaded**, since video files rarely carry a reliable capture date.
-8. **Guests adding photos through a public link can't add videos** — that stays open to photos only.
+8. **Guests invited through a public link can add videos too**, the same as photos — though they can add fewer videos in a stretch than an account holder can, which keeps a link that spreads too far from filling your storage.
 
 ## 5. Looking at photos and videos
 
@@ -97,7 +97,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 ## 8. Sharing with people
 
 1. **Share a memory with another person by email address.**
-2. **Two levels of access:** *Can view*, or *Can add photos*.
+2. **Two levels of access:** *Can view*, or *Can add photos and videos*.
 3. **They get an email** telling them the memory has been shared with them.
 4. **See everyone a memory is shared with**, change someone's access level, or remove their access entirely.
 5. **"Shared with me"** is its own tab, separate from your own memories, so shared albums never clutter your list.
@@ -110,13 +110,14 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 3. **Regenerate the link** if it's gone somewhere you didn't intend — the old one dies instantly.
 4. **What a visitor sees:** the memory's title, its date, the grid, the fullscreen viewer, and the download controls. Nothing else — not your other memories, not your account, and no way to change anything.
 
-## 10. Letting guests add photos
+## 10. Letting guests add photos and videos
 
-1. **Optionally allow anyone with the public link to add photos** to that one memory — useful for collecting everyone's pictures after an event without asking them all to sign up.
+1. **Optionally allow anyone with the public link to add photos and videos** to that one memory — useful for collecting everyone's pictures after an event without asking them all to sign up.
 2. **Off by default**, and switched on per memory, never globally.
-3. **Guests can only add photos.** Not videos, and they still can't edit or delete anything, including their own uploads.
-4. **Guest uploads aren't attributed to anyone**, and only you, the owner, can remove them.
-5. **Uploads are rate-limited** so a link that spreads further than you meant can't be used to flood your album.
+3. **Guests can add the same things you can** — photos and videos, in the same formats and at the same size limits.
+4. **Guests can only add.** They still can't edit or delete anything, including their own uploads.
+5. **Guest uploads aren't attributed to anyone**, and only you, the owner, can remove them.
+6. **Uploads are rate-limited** so a link that spreads further than you meant can't be used to flood your album. **Videos have their own, tighter limit** on top of that, because they're much larger files.
 
 ## 11. Your account
 

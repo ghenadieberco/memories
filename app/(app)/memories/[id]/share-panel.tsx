@@ -22,7 +22,9 @@ const initial: FormState = {};
  * Owner-only sharing panel (FR-SHARE-1..4, 7, 10).
  *
  * Roles are named by what people can do, not by the DB enum (style guide §10):
- * "Can view" / "Can add photos".
+ * "Can view" / "Can add photos and videos" — the latter says both since D25,
+ * because a contributor was never restricted to photos and the shorter label
+ * quietly understated the permission being granted.
  */
 export function SharePanel({
   memoryId,
@@ -109,7 +111,7 @@ export function SharePanel({
                 defaultValue="viewer"
               >
                 <option value="viewer">Can view</option>
-                <option value="contributor">Can add photos</option>
+                <option value="contributor">Can add photos and videos</option>
               </select>
             </div>
 
@@ -162,7 +164,7 @@ export function SharePanel({
                       }
                     >
                       <option value="viewer">Can view</option>
-                      <option value="contributor">Can add photos</option>
+                      <option value="contributor">Can add photos and videos</option>
                     </select>
 
                     <button
@@ -230,7 +232,7 @@ export function SharePanel({
               />
               <span className="min-w-0">
                 <span className="block text-[14px] font-bold text-ink">
-                  Let anyone with the link add photos
+                  Let anyone with the link add photos and videos
                 </span>
                 <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
                   They won&apos;t need an account, and their uploads won&apos;t be

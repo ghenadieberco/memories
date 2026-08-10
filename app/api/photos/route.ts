@@ -38,11 +38,13 @@ import {
  *   - image -> the mandatory sharp pipeline (NFR-OPT), original discarded (D5)
  *   - video -> stored as uploaded with a client-supplied poster frame (D23)
  *
- * GUESTS MAY NOT UPLOAD VIDEO (D23). D21 opened exactly one unauthenticated
- * write path and sized it for photos: a 25 MB cap and a per-IP rate limit. The
- * same endpoint accepting 100 MB videos from anonymous callers is a different
- * risk and a different bill, and widening it was never the opt-in the owner
- * agreed to. The check is on the server, not merely absent from the guest UI.
+ * GUESTS MAY UPLOAD BOTH (D25). The owner's rule is that guest contribution
+ * means "add what the app supports", not "add photos" — a guest invited to
+ * contribute to a memory is contributing to it, and the media type is not the
+ * interesting distinction. What IS interesting is the bill: D21's single rate
+ * limit was sized when every upload was capped at 25 MB, and at 100 MB per
+ * video the same window would let one IP push over a gigabyte. So video carries
+ * a second, tighter budget of its own, consumed on top of the general one.
  *
  * ONE FILE PER REQUEST, by design. The client sends them a couple at a time and
  * reports per-file success/failure (FR-PHOTO-5). Batching twenty 25MB files
@@ -58,6 +60,18 @@ export const maxDuration = 60;
 /** Guest uploads per IP per window. Generous for a family, hostile to a script. */
 const GUEST_UPLOAD_LIMIT = 12;
 const GUEST_WINDOW_MS = 10 * 60 * 1000;
+
+/*
+ * A second budget, for video only, spent in addition to the one above (D25).
+ *
+ * The general limit counts requests, and a request used to mean at most 25 MB.
+ * Video is worth four of those, so counting the two the same way would quietly
+ * quadruple what an anonymous link holder can push into the bucket. Five per
+ * quarter-hour is a few clips from each guest at a wedding, and nowhere near
+ * enough to be a way to fill paid storage.
+ */
+const GUEST_VIDEO_LIMIT = 5;
+const GUEST_VIDEO_WINDOW_MS = 15 * 60 * 1000;
 
 const targetSchema = z
   .object({
@@ -196,15 +210,28 @@ export async function POST(request: Request) {
   const video = sniffVideoFormat(bytes);
 
   /*
-   * D23 — the guest write path stays photos-only. Checked here on the server,
-   * where it is actually enforced; the guest UI simply doesn't offer video.
+   * D25 — a guest may upload video, but spends a second, scarcer budget to do
+   * it. Checked after sniffing, because only now do we know this is a video,
+   * and charged only to guests: a signed-in contributor was vouched for by the
+   * owner and is not the abuse case this defends against.
    */
   if (video && isGuest) {
-    return NextResponse.json(
-      { error: "This album takes photos from guests, not videos." },
-      { status: 403 },
+    const videoLimit = rateLimit(
+      `guest-video-upload:${clientKey(request)}`,
+      GUEST_VIDEO_LIMIT,
+      GUEST_VIDEO_WINDOW_MS,
     );
+    if (!videoLimit.allowed) {
+      return NextResponse.json(
+        { error: "That's a lot of video at once. Try again in a few minutes." },
+        {
+          status: 429,
+          headers: { "retry-after": String(videoLimit.retryAfterSeconds) },
+        },
+      );
+    }
   }
+
   if (!video && bytes.length > MAX_UPLOAD_BYTES) {
     return NextResponse.json({ error: `${file.name} is over 25 MB.` }, { status: 413 });
   }
