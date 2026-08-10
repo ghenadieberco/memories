@@ -149,28 +149,46 @@ function save(blob: Blob, filename: string): void {
 }
 
 /**
- * A fetch whose failure says something useful.
+ * A fetch that does not trust the browser's HTTP cache, and whose failure says
+ * something useful.
  *
- * The overwhelmingly likely cause of a thrown TypeError here is the bucket not
- * sending CORS headers, which is a deployment step, not a user error — so the
- * console gets the real reason while the user gets a sentence they can act on.
+ * THE RETRY IS A FIX, NOT PADDING. The bucket varies its response by `Origin` —
+ * a CORS request is answered with `Access-Control-Allow-Origin`, a plain one is
+ * not — but it does not send `Vary: Origin`, and objects are stored
+ * `immutable, max-age=1y`. The HTTP cache is not keyed on request mode, so the
+ * moment an <img> displays a photo the browser stores a copy carrying no CORS
+ * header, and every later `fetch` of that URL is handed that copy and fails the
+ * CORS check. Displaying worked and downloading did not — and because the entry
+ * is immutable, it stayed broken for a year. The viewer's Download button hit
+ * this every single time: it sits next to an <img> showing that exact URL.
+ *
+ * `cache: "reload"` skips the cache and goes to the network, where the response
+ * does carry the header, and it rewrites the poisoned entry on the way through
+ * so the plain first attempt starts working again afterwards.
+ *
+ * If both attempts fail the cause is a real one — CORS genuinely unset on the
+ * bucket (`npm run storage:cors`), a missing object, or no network — so the
+ * console gets the reason and the user gets a sentence they can act on.
  */
 async function fetchAsset(url: string): Promise<Response> {
-  let response: Response;
-  try {
-    response = await fetch(url);
-  } catch (error) {
-    console.error(
-      "[download] could not fetch asset — is CORS configured on the bucket? " +
-        "Run `npm run storage:cors`.",
-      error,
-    );
-    throw new Error("We couldn't reach those files. Try again in a moment.");
+  let cause: unknown;
+
+  for (const init of [undefined, { cache: "reload" } as const]) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok) return response;
+      cause ??= new Error(`HTTP ${response.status} ${response.statusText}`);
+    } catch (error) {
+      cause ??= error;
+    }
   }
-  if (!response.ok) {
-    throw new Error("We couldn't reach those files. Try again in a moment.");
-  }
-  return response;
+
+  console.error(
+    `[download] could not fetch ${url} — if this is a CORS failure, check the ` +
+      "bucket's rules with `npm run storage:cors`.",
+    cause,
+  );
+  throw new Error("We couldn't reach those files. Try again in a moment.");
 }
 
 /** FR-DL-1 — save one photo or video, as stored, no archive. */

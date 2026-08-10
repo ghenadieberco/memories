@@ -164,14 +164,17 @@ export function PhotoViewer({
   /*
    * A new photo starts fit-to-screen; carrying zoom across is disorienting.
    *
-   * Adjusted during render against a remembered index rather than in an effect:
-   * React re-renders before painting, so the next photo is never briefly shown
-   * at the previous one's zoom — which is exactly the flash an effect would
-   * produce here.
+   * Remembered by id rather than by index, because the two come apart: deleting
+   * an item out from under an open viewer puts a different photo at the same
+   * index, and an index-keyed check would hand it the previous one's zoom.
+   *
+   * Adjusted during render rather than in an effect: React re-renders before
+   * painting, so the next photo is never briefly shown at the previous one's
+   * zoom — which is exactly the flash an effect would produce here.
    */
-  const [renderedIndex, setRenderedIndex] = useState(index);
-  if (renderedIndex !== index) {
-    setRenderedIndex(index);
+  const [renderedId, setRenderedId] = useState(photo?.id);
+  if (renderedId !== photo?.id) {
+    setRenderedId(photo?.id);
     setScale(1);
     setOffset({ x: 0, y: 0 });
     setError(null);
@@ -366,7 +369,11 @@ export function PhotoViewer({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={() => canZoom && (zoomed ? resetZoom() : zoomAbout(2))}
+        // NOTE: double-click-to-zoom deliberately lives on the <img>, not here.
+        // The prev/next arrows are children of this stage, so a dblclick on them
+        // bubbles up — paging quickly by double-clicking an arrow used to land
+        // on the next photo at 200%, since the zoom ran after the index change
+        // had already reset the scale to fit.
         // Without this the browser's own pan/zoom gestures win on touch and the
         // pointer events never arrive.
         style={{ touchAction: canZoom ? "none" : "auto" }}
@@ -398,6 +405,7 @@ export function PhotoViewer({
             src={photo.url}
             alt=""
             draggable={false}
+            onDoubleClick={() => (zoomed ? resetZoom() : zoomAbout(2))}
             className="rounded-lg object-contain select-none"
             style={{
               maxWidth: "min(96vw, 1600px)",
