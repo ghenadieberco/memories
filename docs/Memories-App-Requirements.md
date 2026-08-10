@@ -169,21 +169,29 @@ A user signs in, creates a **memory** (a named album tied to a date, displayed a
 
 ### 4.1 User
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | UUID | Primary key |
-| `email` | string, unique | Login identifier |
-| `email_verified` | boolean | Default `false` |
-| `password_hash` | string | bcrypt/Argon2id — never plaintext |
-| `display_name` | string | Editable by user |
-| `role` | enum | Default `user`; reserved for future |
-| `image_optimization_enabled` | boolean | **Always `true`**, read-only to user |
-| `failed_login_attempts` | int | For lockout logic |
-| `locked_until` | datetime, nullable | Set when throttled/locked |
-| `last_login_at` | datetime, nullable | |
-| `password_reset_token` | string, nullable | Hashed, single-use |
-| `password_reset_expires_at` | datetime, nullable | |
-| `created_at` / `updated_at` | datetime | Audit |
+> ⚠️ **Do not build this table.** It describes the *logical* user record. In the
+> chosen stack (A6/D12) every credential and session field below is owned and
+> managed by **Neon Auth** in the `neon_auth` schema — re-creating them would mean
+> hand-rolling the password hashing, lockout, verification, and reset flows that
+> FR-AUTH-4/7/8/9 explicitly delegate. The app's own table is `profiles`
+> (implementation plan §5), which holds only `display_name`,
+> `image_optimization_enabled`, and audit timestamps, keyed by the Neon Auth user id.
+
+| Field | Type | Owned by | Notes |
+|---|---|---|---|
+| `id` | UUID | Neon Auth | Primary key; referenced by `profiles.id` |
+| `email` | string, unique | Neon Auth | Login identifier |
+| `email_verified` | boolean | Neon Auth | Default `false` |
+| `password_hash` | string | Neon Auth | Never plaintext; never touched by app code |
+| `display_name` | string | **app** (`profiles`) | Editable by user |
+| `role` | enum | — | Reserved for future; not implemented in v1 |
+| `image_optimization_enabled` | boolean | **app** (`profiles`) | **Always `true`**, read-only to user |
+| `failed_login_attempts` | int | Neon Auth | Lockout logic — verify FR-AUTH-9 coverage in Phase 1 |
+| `locked_until` | datetime, nullable | Neon Auth | Set when throttled/locked |
+| `last_login_at` | datetime, nullable | Neon Auth | |
+| `password_reset_token` | string, nullable | Neon Auth | Hashed, single-use |
+| `password_reset_expires_at` | datetime, nullable | Neon Auth | |
+| `created_at` / `updated_at` | datetime | both | Audit |
 
 ### 4.2 Memory
 
@@ -227,10 +235,11 @@ A user signs in, creates a **memory** (a named album tied to a date, displayed a
 |---|---|---|
 | `id` | UUID | Primary key |
 | `memory_id` | UUID (FK → Memory) | Shared memory |
-| `user_id` | UUID (FK → User) | The member the memory is shared with |
+| `user_id` | UUID (FK → User), nullable | The member the memory is shared with; null while an email invite is unclaimed (D13) |
 | `permission` | enum | `viewer` / `contributor` |
 | `invited_by` | UUID (FK → User) | Usually the owner |
-| `status` | enum | `pending` / `accepted` / `revoked` |
+| `invited_email` | string, nullable | Set when inviting someone with **no account yet** (D13); cleared once claimed |
+| `status` | enum | `pending` / `accepted` / `revoked` — see D14 for who sets what |
 | `created_at` | datetime | |
 
 ### 4.5 Comment

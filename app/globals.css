@@ -1,0 +1,226 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Memories design tokens — see docs/UI_STYLE_GUIDE.md (the authority on appearance).
+ * The style guide's palette IS the shadcn palette here: the semantic tokens shadcn
+ * components consume (--primary, --border, --ring, …) are mapped onto the Memories
+ * tokens below, so any component added later is on-brand without per-component work.
+ *
+ * There is no dark theme. The style guide commits to one look: cream canvas, purple
+ * identity, orange accent. shadcn's `.dark` block was removed deliberately.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-nunito);
+  --font-display: var(--font-fredoka);
+  --font-heading: var(--font-fredoka);
+
+  /* Memories brand tokens, exposed as Tailwind utilities (bg-cream, text-purple, …) */
+  --color-cream: var(--cream);
+  --color-cream2: var(--cream2);
+  --color-purple: var(--purple);
+  --color-purple-d: var(--purple-d);
+  --color-purple-l: var(--purple-l);
+  --color-orange: var(--orange);
+  --color-orange-d: var(--orange-d);
+  --color-ink: var(--ink);
+  --color-muted-ink: var(--muted-ink);
+
+  /* shadcn semantic tokens */
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Radius scale — style guide §5 */
+  --radius-sm: 10px;
+  --radius-md: 13px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 26px;
+  --radius-3xl: 32px;
+}
+
+:root {
+  /* --- Style guide §2, copied verbatim --- */
+  --cream: #faf5ec;
+  --cream2: #f3eada;
+  --purple: #7a2ff2;
+  --purple-d: #6420d6;
+  --purple-l: #9b5cff;
+  --orange: #ff8a3d;
+  --orange-d: #f6731f;
+  --ink: #2c1a4a;
+  --muted-ink: #7c6c92;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --shadow: 0 12px 40px rgba(108, 43, 217, 0.14);
+
+  /* --- shadcn semantics mapped onto the brand --- */
+  --background: var(--cream);
+  --foreground: var(--ink);
+  --card: var(--glass-2);
+  --card-foreground: var(--ink);
+  --popover: rgba(255, 255, 255, 0.86);
+  --popover-foreground: var(--ink);
+  --primary: var(--purple);
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 255, 255, 0.6);
+  --secondary-foreground: var(--purple);
+  --muted: rgba(122, 47, 242, 0.08);
+  --muted-foreground: var(--muted-ink);
+  --accent: rgba(255, 138, 61, 0.16);
+  --accent-foreground: var(--orange-d);
+  /* Destructive reads orange here, not red — style guide §6 `.btn.danger`. */
+  --destructive: var(--orange-d);
+  --border: rgba(122, 47, 242, 0.14);
+  --input: rgba(255, 255, 255, 0.72);
+  --ring: var(--purple-l);
+  --radius: 13px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    color: var(--ink);
+    /* Ambient canvas wash — style guide §2. Fixed so it never scrolls away. */
+    background:
+      radial-gradient(1200px 700px at 80% -10%, #f6ecff 0%, transparent 55%),
+      radial-gradient(900px 600px at -5% 100%, #ffebdc 0%, transparent 55%),
+      var(--cream);
+    background-attachment: fixed;
+  }
+
+  /* Style guide §9 — a visible focus ring on every interactive element. */
+  :focus-visible {
+    outline: 3px solid rgba(122, 47, 242, 0.4);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /*
+   * The signature surface — style guide §4. Glass only reads as glass when
+   * colourful light sits behind it, so never use this without the orbs
+   * (or another gradient) beneath.
+   */
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Ambient orbs — style guide §8. Four blurred radial circles drifting
+ * slowly behind the glass. This is the atmosphere that makes the blur
+ * mean something; keep it, and keep it slow.
+ * ------------------------------------------------------------------ */
+
+.orbs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+}
+
+.orb-p1 {
+  width: 420px;
+  height: 420px;
+  top: -80px;
+  left: -60px;
+  background: radial-gradient(circle, #b892ff 0%, transparent 70%);
+  animation: drift-a 22s ease-in-out infinite;
+}
+
+.orb-o1 {
+  width: 360px;
+  height: 360px;
+  top: 12%;
+  right: -80px;
+  background: radial-gradient(circle, #ffb37a 0%, transparent 70%);
+  animation: drift-b 26s ease-in-out infinite;
+}
+
+.orb-p2 {
+  width: 380px;
+  height: 380px;
+  bottom: -100px;
+  right: 18%;
+  background: radial-gradient(circle, #9b5cff 0%, transparent 70%);
+  animation: drift-c 18s ease-in-out infinite;
+}
+
+.orb-o2 {
+  width: 300px;
+  height: 300px;
+  bottom: 8%;
+  left: -70px;
+  background: radial-gradient(circle, #ff8a3d 0%, transparent 70%);
+  animation: drift-d 24s ease-in-out infinite;
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(60px, 40px) scale(1.08); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-50px, 60px) scale(1.06); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-40px, -50px) scale(1.1); }
+}
+@keyframes drift-d {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(70px, -30px) scale(1.05); }
+}
+
+/* Style guide §8 — honour reduced motion by stopping the drift. */
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -2,7 +2,9 @@
 
 A responsive web app where a signed-in user organizes photos into dated albums ("memories"), browses them as a thumbnail grid or in a fullscreen viewer, shares them with other users or via public view-only links, and comments/likes/tags people on photos.
 
-**Status:** specification only — no application code exists yet. The repo currently holds `README.md` and [docs/](docs/). Phase 0 of the implementation plan (scaffolding) has not been started.
+**Status:** **Phase 0 (foundation) built locally; not yet deployed.** Next 16 + React 19 + Tailwind v4 + shadcn are scaffolded, the full Drizzle schema and first migration exist, and `Dockerfile`/`fly.toml` are verified (image builds, serves, and runs the release command). What remains in Phase 0 is entirely account setup — Neon project, Tigris bucket, `fly deploy` — which needs the owner's credentials. Phase 1 (auth) has not been started.
+
+The landing page at [app/page.tsx](app/page.tsx) is a temporary Phase 0 status board that runs the Neon + Tigris round-trip checks; Phase 1 replaces it with the real sign-in screen. `/api/health?deep=1` writes to the live bucket — remove or protect it during hardening.
 
 ---
 
@@ -57,3 +59,13 @@ Auth is handled by Neon Auth — do not hand-roll password hashing, sessions, ve
 ## Style in one line
 
 Playful glassmorphism: cream canvas, drifting purple/orange light-orbs behind frosted-white panels, bright-purple identity with orange used only as an accent (dates, camera glyph, active toggle, contributor pill). Purple leads; one bold element per screen; keep colorful light behind every glass surface. Copy is active voice, sentence case, and an action keeps its name through the flow. Full tokens and component specs in [docs/UI_STYLE_GUIDE.md](docs/UI_STYLE_GUIDE.md).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

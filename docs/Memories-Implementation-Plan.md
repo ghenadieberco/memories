@@ -191,17 +191,24 @@ create table photos (
 alter table memories
   add constraint fk_cover_photo foreign key (cover_photo_id) references photos(id) on delete set null;
 
--- Sharing membership
+-- Sharing membership  (user_id nullable + invited_email per D13)
 create table memory_shares (
   id uuid primary key default gen_random_uuid(),
   memory_id uuid not null references memories(id) on delete cascade,
-  user_id text not null references profiles(id) on delete cascade,
+  user_id text references profiles(id) on delete cascade,   -- null until an email invite is claimed
+  invited_email text,                                       -- set for invites to a non-user (D13)
   permission text not null check (permission in ('viewer','contributor')),
   invited_by text not null references profiles(id),
   status text not null default 'pending' check (status in ('pending','accepted','revoked')),
   created_at timestamptz not null default now(),
-  unique (memory_id, user_id)
+  constraint memory_shares_target_check check (user_id is not null or invited_email is not null)
 );
+-- A plain `unique (memory_id, user_id)` no longer works: Postgres treats NULLs as
+-- distinct, so every email invite would slip past it. Two partial indexes instead.
+create unique index memory_shares_memory_user_uniq
+  on memory_shares (memory_id, user_id) where user_id is not null;
+create unique index memory_shares_memory_email_uniq
+  on memory_shares (memory_id, lower(invited_email)) where invited_email is not null;
 
 -- Social (Phase 4)
 create table comments (
@@ -318,6 +325,8 @@ Comments and likes on photos (D9), manual people-tagging with removal/self-remov
 - **D10 Contributor deletion:** contributors may delete **only their own** uploads.
 - **D11 Cover fallback:** if a chosen cover photo is deleted, revert to `auto`.
 - **D12 Infrastructure:** **Fly.io** (host) + **Neon** (Postgres + Neon Auth) + **Tigris** (photos; R2 as the free-egress alternative) + **Resend** (email); single Fly region near the users; Drizzle for migrations. *(See Section 1 for the Neon Auth Beta note.)*
+- **D13 Invites to non-users:** a memory may be shared with an email address that has **no account yet**. `memory_shares.user_id` is nullable and `invited_email` carries the address until sign-up claims it. Without this, FR-SHARE-1 ("share by email") only works for people who already registered — the wrong default for a family photo app, and a data migration to fix later.
+- **D14 Share acceptance:** sharing with an **existing** user writes `status = 'accepted'` directly; the email is a notification, not a gate (this is what makes Phase 3's "a second account sees it under Shared with me" true). Only **D13 email invites** start `pending`, flipping to `accepted` when the address is claimed at sign-up. The access helper grants on `'accepted'` alone. *(Resolves the gap where nothing ever left the schema's `'pending'` default.)*
 
 ---
 
@@ -381,10 +390,18 @@ CMD ["node", "server.js"]
 ```
 > `sharp` ships prebuilt binaries for linux; on the slim image install `libvips` if a build step requires it (`apt-get install -y libvips`).
 
+> ⚠️ **HEIC does not work on stock `sharp`** — verified in Phase 0. The bundled
+> libvips reports `heif` input support for **AVIF only** (`fileSuffix: ['.avif']`);
+> HEVC-encoded HEIC is excluded for patent/licensing reasons. D6 requires
+> HEIC → WebP, so Phase 2 must pick one: build libvips with libheif in the
+> Dockerfile (bigger image, slower builds), add a JS fallback such as
+> `heic-convert` for the HEIC minority (slow, memory-hungry), or amend D6 to drop
+> HEIC. This is the default iPhone camera format — decide deliberately.
+
 ### 11.5 fly.toml
 ```toml
 app = "memories"
-primary_region = "iad"   # pick the region nearest your users
+primary_region = "iad"   # Ashburn, VA — users are in New York; Neon project in AWS us-east-1
 
 [build]
 
@@ -400,8 +417,14 @@ primary_region = "iad"   # pick the region nearest your users
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1gb"
 ```
+
+> **Deviations applied in Phase 0** (the committed `fly.toml` and `Dockerfile` are authoritative):
+> - **1 GB, not 512 MB.** `sharp` decoding a 25 MB / 50 MP upload (D6) needs headroom; an OOM kill mid-upload is the worst possible first impression.
+> - **`node:24-slim`, not `node:20`.** Matches the local toolchain, so the image pipeline can't drift from development.
+> - **`release_command = "node dist/migrate.mjs"`, not `npm run db:migrate`.** With `output: 'standalone'` Next traces only what the *app* imports, so neither `tsx` nor Drizzle's migrator exists in the runtime image and the documented command fails on first deploy. `scripts/bundle-migrate.mjs` bundles the migrator at build time instead.
+> - **`pg` (node-postgres) rather than Neon's HTTP driver.** Fly runs a long-lived server, so a warm TCP pool beats one HTTP round trip per query.
 
 ### 11.6 Secrets & migrations
 ```bash

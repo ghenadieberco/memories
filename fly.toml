@@ -1,0 +1,40 @@
+# Memories — Fly.io app configuration (implementation plan §11.5).
+
+app = "memories"
+
+# Users are in New York. Create the Neon project in AWS us-east-1 (N. Virginia)
+# to match.
+#
+# Why iad (Ashburn, VA) and not ewr (Secaucus, NJ), which is physically closer:
+# Neon has no NJ region, so the database lands in Virginia either way. Each page
+# render makes several DB round-trips, so co-locating the app with the database
+# beats shortening the single user-facing hop — ewr would pay ~10ms on every
+# query to save ~10ms once.
+primary_region = "iad"
+
+[build]
+
+[deploy]
+  # Runs before new machines take traffic. Bundled by `npm run db:bundle-migrate`
+  # during the image build — see the Dockerfile for why it is not `tsx`.
+  release_command = "node dist/migrate.mjs"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Keep one machine warm: cold starts on a photo app are very visible, and the
+  # DB pool and image cache stay warm.
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # 1GB, not the plan's 512MB. sharp decoding a 25MB / 50MP upload (D6) needs
+  # real headroom, and an OOM kill mid-upload is a bad first impression.
+  memory = "1gb"
