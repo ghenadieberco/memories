@@ -85,6 +85,39 @@ Nothing is built. The shape of the feature is genuinely undecided, and the open 
 - **Storage doesn't shrink until objects are deleted.** De-duplicating rows while leaving the bucket untouched saves nothing — this must go through the same delete path that already removes storage objects (no orphans).
 - **A hash column is cheap insurance.** Even before the feature is designed, recording the pre-processing hash of each upload would make an exact-match version a query later instead of a re-upload of everyone's library. Worth considering on its own.
 
+### 1.4 FF-ACCOUNT-DELETE — Account deletion, from Settings
+
+Let a signed-in user delete their own account, and everything belonging to it, from Profile & settings. Requested by the owner on 10 August 2026.
+
+> **This one is different from the others on this list: it is already a requirement.** `NFR-PRIV` (§5.5) says the app shall "support account/data deletion (which cascades to owned memories, photos, comments, likes, and tags)". Nothing implements it. So this entry is not a new idea being parked — it is an **unmet obligation** being written down honestly, and it carries more weight than a wish. Give it a real `FR-` ID when it is built.
+>
+> **It is not the same as deactivation.** The admin console can already deactivate an account (D22): admin-driven, reversible, and it leaves every photo untouched. Deletion is user-driven, irreversible, and destroys data. Shipping deletion should not disturb deactivation — the app wants both.
+
+**The blocker, verified against the live database.** Five foreign keys pointing at `profiles` are `NO ACTION`, so `DELETE FROM profiles` **fails today** with a constraint violation for any user who has ever uploaded a photo or shared a memory:
+
+| Table.column | Delete rule | Why it's awkward |
+|---|---|---|
+| `photos.uploaded_by` | `NO ACTION` | Set null and the photo becomes indistinguishable from a guest upload (D21); cascade and deleting your account destroys photos inside **other people's** memories |
+| `memory_shares.invited_by` | `NO ACTION` | **`NOT NULL`** — cannot be nulled, so this needs a real answer, not a default |
+| `photo_tags.tagged_by` | `NO ACTION` | **`NOT NULL`** — same, though the table is unused (D20) |
+| `persons.linked_user_id` | `NO ACTION` | Unused table (D20) |
+| `app_settings.updated_by` | `NO ACTION` | The last admin to toggle maintenance mode can't be deleted |
+
+The remaining five (`memories.owner_id`, `memory_shares.user_id`, `comments`, `likes`, `persons.owner_user_id`) are `CASCADE`, which is its own hazard — see below. **Whichever way each is resolved, it is a schema migration and a decision per column.**
+
+**The trap that matters most: a cascade delete orphans every stored object.** `memories.owner_id` cascading to memories, and memories cascading to photos, removes *rows* — it does not touch the bucket. That silently violates the standing rule that deleting a memory or photo deletes its storage objects too. And since D26 derives quota usage from those rows, the orphaned bytes **disappear from accounting while Tigris keeps billing for them** — the worst kind of leak, because nothing in the app can see it. Deletion must therefore run through the application's own delete path (collect keys, delete objects, then rows), not by leaning on the database's cascade.
+
+**The second trap: `profiles` is not the user.** Neon Auth owns the account record in `neon_auth.user`; `profiles` is only the app's side of it. Deleting the profile row leaves the credentials intact, and **Phase 1 creates a profile on first sign-in** — so the person can sign back in and be handed a fresh, empty account, which is not what "delete my account" means to anyone. The Neon Auth user has to go too. ⚠️ **Check whether the SDK can actually do this before promising the feature:** `@neondatabase/auth@0.4.2-beta`'s admin endpoints were found returning 404 during D22, which is why `profiles.role` exists at all.
+
+**Everything else to decide:**
+
+- **Media in other people's memories.** If a contributor deletes their account, do their uploads vanish from albums they don't own, or stay as unattributed content? Both are defensible; the owner of *that* album has a legitimate interest either way. Note that "stays, unattributed" makes it a guest upload in all but name — and only the memory owner can delete those.
+- **Memories shared with other people** disappear for those people the moment the owner's account goes. Warn about that in the confirmation, naming how many people are affected.
+- **Give the data back before taking it away.** Download already exists (`FR-DL-*`, D24) — offering "download everything first" as a step in the flow costs little and is the difference between a considerate deletion and a destructive one.
+- **Confirmation has to be proportionate to irreversibility** — a typed confirmation, not a single button, and copy in the style guide's plain voice that says what is destroyed and that it cannot be undone.
+- **`assertWritable(userId)` is mandatory** (D22) — deletion is a mutation, and maintenance mode must freeze it like any other.
+- **Undo window?** A grace period (soft-delete now, purge in 30 days) is far kinder and much more work — it means a scheduled job, which this app has none of today. Decide deliberately; the existing `deactivated_at` column is *not* a free implementation of it, since deactivation means something else.
+
 ### Cross-cutting reminders for whoever picks this up
 
 - The slideshow lives in the authenticated viewer *and* on the public `/m/[token]` route, which share one `PhotoViewer` component. Decide guest behaviour explicitly rather than letting it fall out of that sharing — as download did, deliberately, in D24.
