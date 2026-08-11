@@ -17,7 +17,7 @@ viewer). Social features are out of scope. See [CLAUDE.md](CLAUDE.md) for status
 | | |
 |---|---|
 | **Node** | 24 or newer (`node -v`) |
-| **Database** | A Postgres database — [Neon](https://console.neon.tech) is the target, but any local Postgres works for development |
+| **Database** | A [Neon](https://console.neon.tech) Postgres database. Neon Auth owns the `neon_auth` schema, so a plain local Postgres is **not** a substitute — see [Why not a local Postgres?](#why-not-a-local-postgres) |
 | **Object storage** | An S3-compatible bucket — [Tigris](https://fly.io/docs/tigris/) via `fly storage create`, or Cloudflare R2 |
 | **Docker** | Optional; only needed to build the production image |
 
@@ -34,30 +34,37 @@ npm install
 cp .env.example .env.local
 ```
 
-Fill in `.env.local`. The two groups that matter for local development:
+Fill in `.env.local`. Every value must be a **development** value — a Neon `dev` branch
+and a separate `-dev` bucket, never the production pair. See
+[Development uses its own database and bucket](#development-uses-its-own-database-and-bucket)
+for why the two halves have to move together.
 
 **Database** — create the Neon project in **AWS us-east-1 (N. Virginia)** to match
 `primary_region = "iad"` in [fly.toml](fly.toml); Neon's region cannot be changed after
-creation. Use the **pooled** connection string (its host contains `-pooler`):
+creation. Use the **pooled** connection string (its host contains `-pooler`), copied from
+the console with the `dev` branch selected:
 
 ```
-DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/memories?sslmode=require
+DATABASE_URL=postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=verify-full
 ```
 
-<details>
-<summary>Or use a local Postgres instead of Neon</summary>
+`verify-full` is deliberate. The console hands you `sslmode=require`, which `pg` treats
+identically today but warns about on every boot, because it weakens to libpq semantics in
+`pg` v9 / `pg-connection-string` v3. Naming `verify-full` pins the behavior we already have.
 
-```bash
-docker run -d --name memories-db -p 5432:5432 \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=memories postgres:17
+**Neon Auth** — Neon console → Auth → Enable Auth → Configuration, with the `dev` branch
+selected. Auth is branch-aware: each branch has an isolated auth environment, and existing
+users and sessions are copied in when the branch is created, so your production account
+can sign in on `dev` with its existing password.
+
+```
+NEON_AUTH_BASE_URL=https://ep-xxx.neonauth.region.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=<openssl rand -base64 32>
 ```
 
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/memories
-```
-
-TLS is skipped automatically for `localhost` connections.
-</details>
+`NEON_AUTH_COOKIE_SECRET` is one you generate, not one you copy from the console — it's the
+HMAC key for session cookies. Only `min(32)` is enforced, so pasting a URL in by mistake
+validates and "works" while leaving sessions signed with a public value.
 
 **Object storage** — `fly storage create` prints these once, so capture them:
 
@@ -70,14 +77,62 @@ S3_BUCKET=...
 S3_PUBLIC_URL=https://your-bucket.fly.storage.tigris.dev
 ```
 
-The bucket must allow **public reads** — image bytes are served straight from its
-CDN and are never proxied through the app.
+⚠️ **Create dev buckets from a directory with no `fly.toml`.** `fly storage create` has no
+`--no-attach` flag; run inside this repo it reads `fly.toml`, attaches the new bucket to the
+Fly app, and **overwrites the production `AWS_*` / `BUCKET_NAME` secrets** — pointing the
+live app at an empty bucket. Name the org explicitly instead:
 
-Then create the tables:
+```bash
+cd ~ && fly storage create -o personal -n <app>-photos-dev -p -y
+```
+
+`-p` makes the bucket public. It must allow **public reads** — image bytes are served
+straight from its CDN and are never proxied through the app — and without `-p` every
+thumbnail 404s.
+
+**Email** — `RESEND_API_KEY` can stay empty locally. With no key set, mail is logged to the
+console instead of sent.
+
+Then create the tables and allow the browser to fetch from the bucket:
 
 ```bash
 npm run db:migrate
+npm run storage:cors
 ```
+
+`storage:cors` targets whichever bucket `.env.local` names, and bare it authorizes only
+`localhost` — which is what you want for a dev bucket. Downloads fail without it while every
+other feature works.
+
+### Development uses its own database and bucket
+
+| | Development | Production |
+|---|---|---|
+| Neon branch | `dev` | default branch |
+| Neon Auth | the `dev` branch's own auth environment | the default branch's |
+| Tigris bucket | `<app>-photos-dev` | `<app>-photos` |
+
+**Split both, or neither.** A dev database pointed at the production bucket is *worse* than
+sharing both: deleting a test photo locally would destroy an object the live app still has a
+row for, and production would start serving broken images.
+
+⚠️ **Console-created Neon branches default to a 1-day expiration**, after which the branch
+and its auth environment are permanently deleted. After creating one: Branches → the branch
+→ Actions → Edit expiration → toggle off *"Automatically delete branch after"*. Branches
+created via the API or CLI have no expiration.
+
+A new branch copies the `photos` rows, whose keys point into the *production* bucket, so
+pre-existing media 404s in development. Delete the copied memories on the branch and create
+test data rather than mirroring objects across.
+
+### Why not a local Postgres?
+
+The app's own tables would migrate fine, but **Neon Auth owns the `neon_auth` schema and
+syncs it into its own database** — a local Postgres will never receive `neon_auth.user`.
+You'd sign in against remote Neon Auth while reading data from a database with no user
+table, so sharing by email ([lib/sharing.ts](lib/sharing.ts)) and the admin console
+([lib/admin.ts](lib/admin.ts)) fail while most other things appear to work. Use a Neon `dev`
+branch instead.
 
 ## Run it
 
@@ -129,12 +184,28 @@ docker run --rm -p 3000:3000 --env-file .env.local memories
 **`connected in Nms, but only 0/8 tables exist`**
 The database is reachable but empty — run `npm run db:migrate`.
 
+**Uploading a photo shows `We couldn't store <file>` and the grid refreshes**
+Almost always incomplete storage config. `storageEnv()` throws the moment the upload route
+reaches storage, and the route returns it as a 502; the refresh is the client re-syncing the
+grid. Check that `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_BUCKET` are non-empty and
+that `S3_PUBLIC_URL` isn't still the `your-bucket` placeholder. `curl "localhost:3000/api/health?deep=1"`
+confirms it — it writes and reads a real object.
+
 **`uploaded, but public URL returned 403`**
 The upload worked, so your credentials are fine; the bucket isn't publicly readable or
 `S3_PUBLIC_URL` points somewhere else. Check the bucket's visibility first.
 
+**Sharing by email finds nobody, or the admin console lists no users**
+`relation "neon_auth.user" does not exist` — `DATABASE_URL` points at a database Neon Auth
+doesn't manage, typically a local Postgres. See
+[Why not a local Postgres?](#why-not-a-local-postgres).
+
 **Connection times out against Neon**
-Make sure you used the *pooled* connection string and kept `?sslmode=require`.
+Make sure you used the *pooled* connection string (its host contains `-pooler`) and kept an
+`sslmode` on it — `verify-full`.
+
+**Downloads fail while everything else works**
+The bucket has no CORS rule. Run `npm run storage:cors`.
 
 **HEIC uploads fail (Phase 2 onward)**
 Known and expected. The prebuilt `sharp` binary decodes AVIF but not HEIC, so iPhone
@@ -146,18 +217,17 @@ photos in their default format need a decision — see the HEIC note in
 ## Where things live
 
 ```
-app/          routes — currently the status page and api/health
-components/   shared UI (wordmark, shadcn components)
+app/(auth)/   sign-in, sign-up, verify, forgot/reset password
+app/(app)/    the authenticated area — memories, shared, settings, admin
+app/m/        the public guest album at /m/[token]
+app/api/      auth proxy, health, photo upload
+components/   shared UI (viewer, cards, menus, shadcn components in ui/)
 db/           schema.ts, migrations/, migrate.ts
-lib/          env, db, storage, health
+lib/          env, db, access control, storage, image/video pipelines, sharing
 docs/         requirements, implementation plan, style guide, prototype,
               current features, future functionalities (deferred + out of scope)
-scripts/      build tooling
+scripts/      build tooling, bucket CORS, one-off backfills
 ```
-
-Later phases fill this out per the implementation plan §3: `app/(auth)` for sign-in,
-`app/(app)` for the authenticated area, `app/m/[token]` for the public guest album,
-and `lib/image.ts` for the `sharp` pipeline.
 
 `docs/` is the source of truth for this project — read the relevant document before
 changing behavior, and update it in the same change when behavior intentionally moves.
