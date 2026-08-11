@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Settings as SettingsIcon, Shield } from "lucide-react";
 
 import { SignOutButton } from "@/components/sign-out-button";
+import { StorageMeter } from "@/components/storage-meter";
 import { Wordmark } from "@/components/wordmark";
+import type { StorageUsage } from "@/lib/storage-quota";
 
 /*
  * Authenticated top bar — style guide §6 (glass bar, radius 22) and §6 Avatar
@@ -12,7 +14,16 @@ import { Wordmark } from "@/components/wordmark";
  * purple→orange gradient is allowed (style guide §2, §11).
  */
 
-export function TopBar({ name, isAdmin = false }: { name: string; isAdmin?: boolean }) {
+export function TopBar({
+  name,
+  isAdmin = false,
+  storage,
+}: {
+  name: string;
+  isAdmin?: boolean;
+  /** FR-QUOTA-7 — the owner's usage, read once by the layout. */
+  storage?: StorageUsage;
+}) {
   const initial = (name.trim()[0] ?? "?").toUpperCase();
 
   return (
@@ -21,6 +32,8 @@ export function TopBar({ name, isAdmin = false }: { name: string; isAdmin?: bool
         <Link href="/memories" aria-label="Memories home" className="mr-auto">
           <Wordmark size="nav" />
         </Link>
+
+        {storage && <StorageMeter usage={storage} />}
 
         {isAdmin && (
           <Link href="/admin" className="btn ghost sm" aria-label="Admin console">

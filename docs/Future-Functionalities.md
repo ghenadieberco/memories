@@ -46,6 +46,45 @@ Notes and open points:
 - **Video is now in the product, so the slideshow has to answer for it** (`FR-VIDEO-2`). Decide whether a timed advance plays a video through to its end, gives it the fixed interval like a photo, or skips it. Note the viewer deliberately does *not* prefetch video neighbours (`NFR-PERF`), which a slideshow's look-ahead would need to reconsider.
 - **The viewer now has zoom** (`FR-VIEW-9`). Decide what a slideshow advance does to a zoomed photo — almost certainly reset to fit, matching what manual navigation already does.
 
+### 1.2 FF-BILLING — Paid storage tiers
+
+Raise a user's storage allowance beyond the default 20 GB in exchange for a subscription. Raised by the owner on 10 August 2026 while specifying the quota itself (`FR-QUOTA-*`, D26) — the quota shipped, the paid tier did not.
+
+**Phase 7 already did the one thing that would have been expensive to retrofit:** the allowance lives in `profiles.storage_quota_bytes` per user rather than as an app constant, so granting an account more space is an `UPDATE`, not a migration. Everything else is unbuilt.
+
+Notes and open points:
+
+- **Nothing about payments exists.** No payment provider, no subscription state, no invoices, no webhook path, no dunning. That is a new vendor and a new recurring cost line — the same bar D23 set for an external transcoder, and it should be cleared just as deliberately.
+- **Decide what happens when a subscription lapses** while the user is over the free allowance. The quota deliberately blocks uploading only and never withholds existing content (`FR-QUOTA-10`); a downgrade must not quietly turn into deletion. A read-only-until-resolved state is the humane reading, but it needs to be chosen and written down.
+- **Tiers need a price that clears the true cost.** Tigris Standard is $0.02/GB/month with free egress, so 20 GB of *actually used* space costs about $0.40/month. Storage is recurring and only accumulates — a one-off payment for a permanent allowance is a permanent liability.
+- **The meter's copy would change.** `FR-QUOTA-7`'s indicator says used vs total; a tiered product usually wants the total to be a link to an upgrade, which is a different component contract than the current read-only display.
+- Admin-facing usage reporting doesn't exist either (D26 scoped it out explicitly) and is close to a prerequisite for supporting paid accounts.
+
+### 1.3 FF-DUPES — Check for duplicates
+
+Find media that is already in the app, so the same photo isn't stored — and paid for — twice. Requested by the owner on 10 August 2026, alongside the storage quota (`FR-QUOTA-*`), which is the reason it is worth doing: every duplicate spends quota the owner would rather keep.
+
+Nothing is built. The shape of the feature is genuinely undecided, and the open points below are the reason — pick answers deliberately and write them into the requirements doc before any code.
+
+**The first fork: when does it check?**
+
+- **At upload**, warning before the file is stored — prevents the waste rather than cleaning it up, but puts work in the request path that already runs `sharp` under a time budget.
+- **After the fact**, as a "find duplicates" review screen over what is already there — no upload cost, and it is the only mode that helps with the duplicates already in the bucket today.
+- Both, eventually. If only one ships first, the review screen is the one that pays for itself immediately.
+
+**The second fork: what counts as a duplicate?**
+
+- **Exact bytes** — a hash (SHA-256) of the uploaded file, compared before storing. Cheap, exact, no false positives, and catches the common real case: the same file added twice from the same phone. ⚠️ **The image pipeline is the obstacle.** D5 discards the original and re-encodes to WebP, and `sharp` output is not guaranteed bit-identical across versions or across two visually identical inputs — so the hash must be taken of **the uploaded bytes, before processing**, and stored alongside the row. A hash of the optimized output would silently miss duplicates after any pipeline change.
+- **Perceptual** (pHash/dHash) — catches a resized or re-compressed copy of the same photo, which is what "duplicate" usually means to a person with a camera roll. Costs a similarity search rather than an equality lookup, and it has false positives (burst shots, near-identical frames), so it cannot silently delete anything — it can only ever *propose*.
+
+**Everything else this needs decided:**
+
+- **Scope of the comparison.** Within one memory, across all of an owner's memories, or across memories shared with them? Cross-memory is the useful answer and the one with a privacy edge: never report a match against a memory the viewer cannot already see.
+- **What the app does on a match.** Refusing an upload outright is wrong — the same photo in two memories is a legitimate thing to want. Warn and let the user decide; never auto-delete.
+- **Guests.** A guest on a public link (D21/D25) uploading a duplicate is the most likely source of them. Whatever the flow is, a guest cannot be shown the owner's other memories in the process (`FR-QUOTA-6` sets the precedent: refusals to guests disclose nothing about the owner's account).
+- **Storage doesn't shrink until objects are deleted.** De-duplicating rows while leaving the bucket untouched saves nothing — this must go through the same delete path that already removes storage objects (no orphans).
+- **A hash column is cheap insurance.** Even before the feature is designed, recording the pre-processing hash of each upload would make an exact-match version a query later instead of a re-upload of everyone's library. Worth considering on its own.
+
 ### Cross-cutting reminders for whoever picks this up
 
 - The slideshow lives in the authenticated viewer *and* on the public `/m/[token]` route, which share one `PhotoViewer` component. Decide guest behaviour explicitly rather than letting it fall out of that sharing — as download did, deliberately, in D24.

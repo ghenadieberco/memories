@@ -192,6 +192,9 @@ create table profiles (
   id text primary key,                         -- Neon Auth user id
   display_name text not null,
   image_optimization_enabled boolean not null default true,  -- always true; read-only in UI (FR-PROF-4)
+  -- FR-QUOTA-1 / D26: per-user so a future paid tier (FF-BILLING) is an UPDATE,
+  -- not a migration. 20 GB = 21474836480 bytes.
+  storage_quota_bytes bigint not null default 21474836480,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -224,8 +227,9 @@ create table photos (
   original_filename text,
   mime_type text not null,                     -- image/webp, video/mp4, video/webm
   width int, height int,
-  optimized_size_bytes bigint,
-  original_size_bytes bigint,
+  optimized_size_bytes bigint,                 -- the video file itself when media_type = 'video'
+  thumbnail_size_bytes bigint,                 -- FR-QUOTA-3: thumbnail/poster; without it usage undercounts ~13%
+  original_size_bytes bigint,                  -- NOT counted against quota; the original is discarded (D5)
   duration_seconds int,                        -- FR-VIDEO-5; null for images
   taken_at timestamptz,                        -- from EXIF, extracted before stripping; null for video
   sort_order int not null default 0,
@@ -373,6 +377,36 @@ It grants `GET`/`HEAD` and nothing else. It does not widen access: the objects a
 
 ---
 
+## 7c. Storage quota accounting (FR-QUOTA-*, D26)
+
+`lib/storage-quota.ts` owns this. Two functions and one rule.
+
+**The rule: usage is derived, never counted.** There is no `bytes_used` column. Usage is a `SUM` over the media in the memories a user owns:
+
+```sql
+select coalesce(sum(coalesce(p.optimized_size_bytes, 0)
+                  + coalesce(p.thumbnail_size_bytes, 0)), 0)
+from photos p
+join memories m on m.id = p.memory_id
+where m.owner_id = $1 and p.status = 'ready';
+```
+
+A maintained counter would be a second source of truth, and every path that deletes media — photo delete, bulk delete, memory delete, a failed upload's cleanup, a manual fix in `psql` — would have to remember to decrement it. One of them eventually won't. The `SUM` is index-backed on `photos(memory_id)` and runs on data sized in the low thousands of rows per user; if it ever becomes slow the fix is a materialized view, not a counter.
+
+Three details that are easy to get wrong:
+
+- **`join memories` is what makes it owner-charged.** Summing `where p.uploaded_by = $1` would be the uploader-charged reading, and it silently omits every guest upload, since those have `uploaded_by = NULL` (D21). That is the exact hole the quota exists to close — see D26.
+- **Add `thumbnail_size_bytes`, don't infer it.** `optimized_size_bytes` holds only the full-size asset. Measured on live data the full-size average is 198 KB against a 13 KB thumbnail, so summing the one column alone undercounts by **~6.6%** — an item really costs ~211 KB, not 198.
+- **`status = 'ready'` only.** A row that is still `uploading` or has `failed` has no settled bytes to charge for.
+
+**Enforcement — `assertQuota(ownerId, incomingBytes)`** runs in the upload route *before* the S3 `PUT`, on both the authenticated and the guest path (`FR-QUOTA-5`). It throws a typed error the route turns into a 413 with the remaining space named (`FR-QUOTA-4`), or a guest-safe message that discloses no figures (`FR-QUOTA-6`).
+
+> ⚠️ **The check is inherently racy and that is accepted.** Two concurrent uploads can both read usage below the line and both pass. The overshoot is bounded by one file (25 MB, or 100 MB for video) against a 20 GB quota, and the alternative — a transaction that locks the owner's whole photo set for the duration of an upload — costs far more than the ~0.5% it would recover. Do not "fix" this with a lock.
+
+**Known gap, currently latent: custom memory covers are not counted.** `memories.cover_image_key` / `cover_thumbnail_key` (FR-MEM-10) would be real stored objects with no size columns, so they fall outside the `SUM`. **Today this costs nothing — custom cover *upload* was never built** (see Current-Features "Known gaps"), so no such object exists. It becomes a real undercount the moment that gap is closed, bounded by one cover per memory at ~211 KB. **Whoever builds cover upload owns this:** add the size columns in the same change, or the quota starts lying the day the feature ships.
+
+---
+
 ## 8. Phased build plan
 
 ### Phase 0 — Foundation
@@ -404,6 +438,20 @@ Guest photo contributions (D21), multi-select bulk delete, and the admin console
 ### Phase 6 — Download, video, and the enlarged viewer (FR-DL-*, FR-VIDEO-*, FR-VIEW-8/9)
 The first three deferred `FF-*` items, promoted and specified on 10 August 2026. Download assembled in the browser with size ceilings, guests included (Section 7b, D24). Video stored as uploaded with a browser-captured poster, open to guests on a tighter rate-limit budget (Section 7a, D23 + D25). Viewer enlarged to the available viewport, plus zoom, pan, pinch and a Fit control for images — video plays instead, with its own controls.
 **Acceptance:** upload an MP4 and see it marked and playable in the grid and viewer; zoom and pan a photo, then Fit; download one item, a selection, and a whole memory as a correctly-named `.zip`; do the same as a guest on a public link; confirm a guest **cannot** upload video. **Requires `npm run storage:cors` to have been run against the bucket** — downloads fail without it while everything else works.
+
+### Phase 7 — Storage quota (FR-QUOTA-*, D26)
+Owner-requested, specified 10 August 2026. A **20 GB per-user quota** charged to the **memory owner**, enforced server-side on every media write, and surfaced as a **Storage Used vs Total meter in the top bar** on all authenticated pages.
+
+Build order, because each step depends on the one before:
+
+1. **Schema.** Add `profiles.storage_quota_bytes` (bigint, default 20 GB — per-user so `FF-BILLING` never needs a migration) and `photos.thumbnail_size_bytes` (bigint, nullable). Generate and run the Drizzle migration.
+2. **Backfill `thumbnail_size_bytes`** for existing rows. They were written before the column existed, so they contribute their full-size bytes and nothing else until backfilled — an undercount, not a wrong number, which is why the column is nullable and the `SUM` coalesces. `scripts/backfill-thumbnail-sizes.ts` `HEAD`s each thumbnail object and writes its `ContentLength`.
+3. **`lib/storage-quota.ts`** — the derived-usage query and `assertQuota` (Section 7c).
+4. **Record thumbnail size on new uploads** in `app/api/photos/route.ts`, both media paths. Do this *before* wiring enforcement, or the first uploads under the new rule are themselves undercounted.
+5. **Enforce** in the upload route ahead of the S3 `PUT`, on the authenticated *and* guest paths, with the two distinct messages (`FR-QUOTA-4` / `FR-QUOTA-6`).
+6. **The meter** — a server-rendered component in `TopBar`, with near-full (≥ 80%) and full (≥ 100%) states per `FR-QUOTA-8`, collapsing to a bar without figures on narrow screens.
+
+**Acceptance:** the top bar shows a correct used/total figure that matches a hand-run `SUM` against the database; uploading is refused with a message naming the remaining space once the quota would be exceeded, and refused on the guest path too **without disclosing the owner's figures**; deleting media lowers the figure immediately; a user over quota can still view, share, download, and delete; lowering one user's `storage_quota_bytes` in the database changes only that user's meter.
 
 ---
 
@@ -443,6 +491,11 @@ The first three deferred `FF-*` items, promoted and specified on 10 August 2026.
 - **D23 Video: stored as uploaded, not transcoded.** Resolves the fork the deferred `FF-VIDEO` item said had to be settled before any code. Rejected: **ffmpeg on the Fly machine** (competes with request serving on one shared 1 GB VM, blows the route's time budget, and realistically needs a job queue and a "processing" tile state) and an **external transcoder** (best output, but a new vendor, a monthly cost line, secrets, and a webhook path). Chosen instead: accept only what a browser already plays — **MP4 and WebM** — cap hard at **100 MB** (separate from D6's 25 MB photo cap), and take the poster frame from the uploader's browser (`FR-VIDEO-3`), which doubles as proof the file is playable. Consequences, all made explicit rather than left to be discovered: **D5 does not apply to video** — there is no derived copy, so the stored file *is* the original; **video metadata is not stripped** the way EXIF is, and `FR-VIDEO-6` says so to the user; **`taken_at` is null**, so video sorts by upload time. ~~Guests cannot upload video.~~ **Superseded the same day by D25 — see below.** **Open risks: no server-side content validation beyond container sniffing, and no way to shrink a video a user uploads at full phone resolution.**
 - **D25 Guests may upload video too.** Reverses the guest restriction D23 shipped with, at the owner's direction: **guest contribution means "add whatever the app supports"**, and a guest invited to contribute to a memory is contributing to it — the media type was never the interesting distinction. The build's caution was not the owner's rule, and the share dialog's own label made the mismatch obvious. What survives the reversal is the *cost* concern behind it: D21's single per-IP limit (12 per 10 minutes) was sized when every upload was capped at 25 MB, and at 100 MB per video that window would let one anonymous IP push over a gigabyte into paid storage. So video now spends a **second budget of its own — 5 per 15 minutes — charged on top of the general one, and only to guests**; a signed-in contributor was vouched for by the owner and is not the abuse case. Also corrected the member-facing labels: "Can add photos" became "Can add photos and videos", since a contributor was never restricted to photos and the shorter label understated the permission being granted.
 - **D24 Download: assembled in the browser, and guests may download.** Two decisions the deferred `FF-DL` item flagged. **(a) Where the zip is built:** in the browser, from the CDN URLs the page already holds (`FR-DL-5`), rather than streamed from a server route — which would have moved image bytes through the app and needed an explicit carve-out from a stated non-negotiable. This also means download introduces **no new server route and no new access path**: it can only reach what was already rendered to that viewer. **(b) Guest access:** guests on a public link **can** download, at the owner's decision, amending `FR-SHARE-9`. The deferred item recommended off-by-default with a per-memory opt-in; the owner chose always-on, which needs no schema column and keeps the public page's controls the same as the owner's. It stays a read that reaches no further than the page itself, and revoking the link ends both together. **Costs: the bucket now needs a CORS rule (`npm run storage:cors`) or downloads fail silently while everything else works**, and the archive is assembled in memory, hence the 300-item / ~500 MB ceilings in `FR-DL-7`.
+- **D26 Storage quota: 20 GB per user, charged to the memory owner.** Answers the requirements' open question 5, which had been carrying "is there a per-user photo limit?" unresolved since v1. **20 GB** at the owner's direction; Tigris Standard is $0.02/GB/month with free egress, so the ceiling costs **$0.40 per user per month if actually filled**, and about **$47/year** if ten users all fill it. That is the number the limit is buying down — realistic photo-only use at this scale sits inside Tigris's free 5 GB.
+  - **Charged to the owner, not the uploader.** The alternative reading — each user's own uploads count against their own quota — was rejected because it leaves **guest uploads uncapped**: they have `uploaded_by = NULL` (D21), so there is no user to charge, and the one path where an anonymous link holder spends the owner's money would be the one path with no ceiling. Owner-charged also matches how the bill actually arrives: Tigris invoices for bytes in the bucket, and the owner is who chose to enable the link. The cost is that a busy contributor can consume the owner's allowance — visible in the owner's meter, and the owner already controls the sharing that caused it.
+  - **A limit, not a metering system.** No `bytes_used` counter, no usage history, no per-memory sub-limits, no admin-facing usage report. Usage is a `SUM` derived on read (Section 7c) because a counter would need every delete path to remember it. Held **per user** in `profiles` rather than as an app constant, so `FF-BILLING` can raise one account's allowance with an `UPDATE`.
+  - **Consequences made explicit:** the check is **racy** by design (bounded by one file's overshoot — see the warning in Section 7c); **custom memory covers are not counted**, a bounded undercount recorded there as a known gap; and the quota blocks **uploading only** — a user over quota keeps full read, share, download, and delete access (`FR-QUOTA-10`), because a quota is never a reason to withhold someone's own memories.
+  - **The subtle one:** `optimized_size_bytes` never included the thumbnail, so any quota built on that column alone silently undercounts every image by ~6.6% (measured after the backfill: 198 KB full-size against a 13 KB thumbnail). Hence `thumbnail_size_bytes` and its backfill.
 
 ---
 
@@ -455,6 +508,7 @@ The first three deferred `FF-*` items, promoted and specified on 10 August 2026.
 - [ ] Images served from the Tigris/R2 CDN, not proxied through the app. **Downloads too** — the archive is built in the browser (D24), so no route should ever stream image or video bytes.
 - [ ] Exactly **one** unauthenticated write path exists (guest upload, D21). It is rate-limited, and video is charged to a **second, tighter budget** on top (`FR-VIDEO-7`, D25). Adding a second write path, or letting video through on the general limit alone, is a defect.
 - [ ] Uploaded media is identified by **sniffing its bytes**, never by the client's `mime_type` — for video (`lib/video.ts`) as well as images.
+- [ ] Every path that writes media calls `assertQuota` **before** the storage `PUT` (`FR-QUOTA-5`, D26) — the guest path included, since that is the one an anonymous visitor can reach. The guest refusal must not disclose the owner's usage (`FR-QUOTA-6`).
 - [ ] Bucket CORS grants `GET`/`HEAD` to the app origin only, and no write method.
 - [ ] Passwords, verification, reset, lockout handled by Neon Auth (not custom code).
 - [ ] HTTPS enforced (Fly TLS + custom domain); all secrets set via `fly secrets`, none in the repo.

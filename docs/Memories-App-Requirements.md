@@ -108,6 +108,26 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 | FR-PHOTO-6 | The user shall be able to **delete a photo** from a memory, with confirmation; the underlying stored files (optimized + thumbnail) shall also be removed. |
 | FR-PHOTO-7 | Photos within a memory shall have a defined **display order** used by the grid and fullscreen viewer (default: upload order or capture time — to confirm). |
 
+### 3.4a Storage quota (FR-QUOTA-*)
+
+Added 10 August 2026 at the owner's request. The governing decision is **D26**: a quota is **charged to the memory owner**, not the uploader. See the implementation plan Section 9 for why and Section 7c for how it is counted.
+
+> **Note on naming.** These are *functional* requirements about the quota a user sees and hits. They are distinct from **NFR-STOR** (§5.4), which governs how bytes are stored at all. The `FR-`/`NFR-` prefix is the disambiguator.
+
+| ID | Requirement |
+|---|---|
+| FR-QUOTA-1 | Every user shall have a **storage quota**, defaulting to **20 GB**. The quota shall be held **per user** rather than as a global constant, so that individual allowances can differ without a schema change (see `FF-BILLING`). |
+| FR-QUOTA-2 | A user's storage usage shall be the total stored bytes of **all photos and videos in the memories that user owns**, regardless of who uploaded them — the owner, a contributor (FR-SHARE-3), or a guest on a public link (FR-VIDEO-7 / D21). Uploading into someone else's memory shall **not** consume the uploader's quota. |
+| FR-QUOTA-2a | Because FR-QUOTA-2 lets other people spend an owner's allowance, the **guest-contribution toggle shall say so at the point of decision** (amends `FR-SHARE-9`). Its previous wording — that guest uploads "won't be attributed to anyone" — is true of *authorship* and misleading about *cost*, since the bytes are attributed very precisely: to the owner. |
+| FR-QUOTA-3 | Usage shall count the bytes actually **stored**, which for an image is the optimized file **plus its thumbnail**, and for a video is the file as uploaded **plus its poster frame**. It shall **not** count the discarded original (D5), which no longer exists. |
+| FR-QUOTA-4 | The system shall **reject an upload that would take the owner over quota**, before any bytes are written to object storage. The error shall state how much space remains and shall name the quota, not merely say "failed". |
+| FR-QUOTA-5 | The quota shall be enforced **server-side at the upload boundary** on every path that writes media — the authenticated upload and the guest upload alike. A client-side check is a courtesy, never the enforcement. |
+| FR-QUOTA-6 | A **guest upload** that would exceed the owner's quota shall be refused with a message appropriate to a guest, who can neither see nor fix the owner's storage: it shall say the memory cannot accept more uploads and shall **not** disclose the owner's usage figures. |
+| FR-QUOTA-7 | The signed-in user shall see a **Storage Used vs Total indicator in the top bar on every authenticated page** — a labelled bar with used and total, so the figure is visible without navigating to settings. It shall degrade gracefully on narrow screens rather than crowding the bar. |
+| FR-QUOTA-8 | The indicator shall change appearance as the quota fills, giving a **distinct near-full state** (at ≥ 80%) and a **distinct full state** (at ≥ 100%), so running out is anticipated rather than discovered at upload time. |
+| FR-QUOTA-9 | **Deleting** a photo, a video, or a whole memory shall free the corresponding space immediately, consistent with FR-PHOTO-6's removal of the underlying stored files. |
+| FR-QUOTA-10 | A user already over quota (for example because their allowance was lowered) shall retain **full read, share, and delete access** to what they have. Only *uploading* is blocked — a quota is never a reason to withhold someone's own memories. |
+
 ### 3.5 Photo viewing (grid + fullscreen)
 
 | ID | Requirement |
@@ -202,7 +222,9 @@ Added 10 August 2026, promoted from the deferred backlog (`FF-DL`). The governin
 > hand-rolling the password hashing, lockout, verification, and reset flows that
 > FR-AUTH-4/7/8/9 explicitly delegate. The app's own table is `profiles`
 > (implementation plan §5), which holds only `display_name`,
-> `image_optimization_enabled`, and audit timestamps, keyed by the Neon Auth user id.
+> `image_optimization_enabled`, `role`/`deactivated_at` (D22),
+> `storage_quota_bytes` (FR-QUOTA-1), and audit timestamps, keyed by the Neon
+> Auth user id.
 
 | Field | Type | Owned by | Notes |
 |---|---|---|---|
@@ -252,9 +274,10 @@ Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). On
 | `mime_type` | string | e.g., `image/webp`, `video/mp4`, `video/webm` |
 | `width` / `height` | int | Of the optimized image; for a video, of the poster frame, which is the video's own frame size |
 | `duration_seconds` | int, nullable | Playback length (`FR-VIDEO-5`). Null for images, and for videos whose duration the browser could not report |
-| `optimized_size_bytes` | int | After optimization |
-| `original_size_bytes` | int | Before optimization (optional, useful for reporting) |
-| `uploaded_by` | UUID (FK → User) | Who uploaded it (may differ from memory owner in a shared memory) |
+| `optimized_size_bytes` | int | After optimization. For a video this is the file as uploaded, since there is no derived copy (D23) |
+| `thumbnail_size_bytes` | int, nullable | Size of the thumbnail / poster frame. Recorded so quota usage counts **everything** stored for the row (`FR-QUOTA-3`) — without it usage undercounts by ~6.6% (measured) |
+| `original_size_bytes` | int | Before optimization (optional, useful for reporting). **Not counted against quota** — the original is discarded (D5) |
+| `uploaded_by` | UUID (FK → User), nullable | Who uploaded it (may differ from memory owner in a shared memory). **Null for a guest upload** (D21) — which is why quota is charged to the memory owner instead (`FR-QUOTA-2`, D26) |
 | `taken_at` | datetime, nullable | Capture time, extracted from EXIF before stripping (used for sorting) |
 | `sort_order` | int | Position within the memory |
 | `status` | enum | `uploading` / `ready` / `failed` |
@@ -345,6 +368,8 @@ Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). On
 - Image binaries live in object storage; the database holds only metadata and references.
 - Target scale (informing sizing, not a hard limit): ~100 users and ~60 GB of new photo storage per year.
 - Deleting a memory or photo shall also remove its stored files to avoid orphaned data and cost.
+- **Per-user quota (FR-QUOTA-*, D26).** Storage is a recurring cost that only ever accumulates, and two paths let someone *other* than the account holder spend it: contributor uploads and guest uploads on a public link. A per-user ceiling — 20 GB by default, charged to the memory owner — bounds that exposure. At the §5.4 target scale the ceiling is a liability limit rather than a working constraint: measured on live data an optimized image plus its thumbnail occupies **~211 KB** (198 KB + 13 KB), so 20 GB is roughly **99,000 photos** — in practice the quota binds only on **video**, which D23 stores untranscoded at up to 100 MB per file, making 20 GB about 200 videos.
+- Usage shall be **derived from the recorded byte sizes of the stored objects**, not from a separately maintained counter. A counter is a second source of truth that drifts the first time a delete, a failed upload, or a manual fix bypasses it.
 
 ### 5.5 Privacy (NFR-PRIV)
 - By default, a user's memories and photos are private; they become visible to others **only** through explicit sharing, and only to the members granted access.
@@ -404,7 +429,7 @@ Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). On
 2. **Memory ⇄ date semantics** — Is the date chosen by the user, taken from the memory's creation day, or derived from the photos' capture dates? And should the app **auto-group** photos into per-day buckets, or is it purely manual (as assumed in A2)?
 3. **One-per-day vs. many** — Can a user have multiple memories on the same date, or is each date a single bucket?
 4. **Originals** — After optimization, do you want to keep the original full-resolution file (higher storage cost, but recoverable/downloadable) or discard it?
-5. **Accepted formats & limits** — Which image formats must be supported (HEIC from iPhones?), and is there a max file size or per-memory / per-user photo limit?
+5. **Accepted formats & limits** — Which image formats must be supported (HEIC from iPhones?), and is there a max file size or per-memory / per-user photo limit? — **Resolved.** Formats and per-file size by D6 (JPEG/PNG/WebP/HEIC, 25 MB) and D23 (MP4/WebM, 100 MB). The **per-user limit** was answered on 10 August 2026: **20 GB, charged to the memory owner** — see FR-QUOTA-* and D26. There is no per-*memory* limit.
 6. **Email changes** — Should users be able to change their account email (with re-verification), or is email fixed after registration?
 7. **Fullscreen wraparound** — At the last photo, should Forward wrap to the first, or stop (as assumed)?
 8. **Download/share** — Should users be able to download a photo from the fullscreen viewer, or is viewing only?

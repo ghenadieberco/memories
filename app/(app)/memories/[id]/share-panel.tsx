@@ -234,10 +234,18 @@ export function SharePanel({
                 <span className="block text-[14px] font-bold text-ink">
                   Let anyone with the link add photos and videos
                 </span>
+                {/*
+                  FR-QUOTA-2 / D26: the second clause used to stop at "won't be
+                  attributed to anyone", which is true of authorship and
+                  misleading about cost — whatever a guest adds counts against
+                  THIS owner's storage. Saying so is the point of the toggle's
+                  warning, not a footnote to it.
+                */}
                 <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
                   They won&apos;t need an account, and their uploads won&apos;t be
-                  attributed to anyone. Only turn this on for a link you&apos;re
-                  happy for strangers to receive.
+                  attributed to anyone — but they count against your storage.
+                  Only turn this on for a link you&apos;re happy for strangers to
+                  receive.
                 </span>
               </span>
             </label>

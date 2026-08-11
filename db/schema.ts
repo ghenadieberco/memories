@@ -22,6 +22,16 @@ import {
  * data, keyed by the Neon Auth user id.
  */
 
+/**
+ * FR-QUOTA-1 / D26 — the default per-user storage allowance: 20 GB.
+ *
+ * Declared here because it is a column default; `lib/storage-quota.ts` owns the
+ * behaviour built on it. Read a user's own `storageQuotaBytes` rather than this
+ * constant when checking anything — the whole point of the column is that the
+ * two can differ.
+ */
+export const DEFAULT_STORAGE_QUOTA_BYTES = 20 * 1024 * 1024 * 1024;
+
 // ---------------------------------------------------------------------------
 // Profiles — app-specific user data, 1:1 with the Neon Auth user
 // ---------------------------------------------------------------------------
@@ -53,6 +63,17 @@ export const profiles = pgTable("profiles", {
   imageOptimizationEnabled: boolean("image_optimization_enabled")
     .notNull()
     .default(true),
+  /**
+   * FR-QUOTA-1 / D26 — how much storage this user's own memories may hold.
+   *
+   * Per-user rather than an app constant so a future paid tier (FF-BILLING) can
+   * raise one account with an UPDATE instead of a migration. The value is a
+   * ceiling on *owned* memories: what the user uploaded elsewhere is charged to
+   * that memory's owner, not here (FR-QUOTA-2).
+   */
+  storageQuotaBytes: bigint("storage_quota_bytes", { mode: "number" })
+    .notNull()
+    .default(DEFAULT_STORAGE_QUOTA_BYTES),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -178,6 +199,19 @@ export const photos = pgTable(
     width: integer("width"),
     height: integer("height"),
     optimizedSizeBytes: bigint("optimized_size_bytes", { mode: "number" }),
+    /**
+     * FR-QUOTA-3 — size of `thumbnail_key`'s object (the thumbnail, or a
+     * video's poster frame).
+     *
+     * Exists because `optimized_size_bytes` covers only the full-size asset,
+     * and a quota summing that column alone undercounts every image by ~6.6%
+     * (measured: 198 KB full-size against a 13 KB thumbnail). Nullable
+     * because rows written before Phase 7 have no value until the backfill
+     * script fills them in; the usage query coalesces, so those rows
+     * undercount rather than break.
+     */
+    thumbnailSizeBytes: bigint("thumbnail_size_bytes", { mode: "number" }),
+    /** Pre-optimization size. Never counted against quota — D5 discards it. */
     originalSizeBytes: bigint("original_size_bytes", { mode: "number" }),
 
     /**

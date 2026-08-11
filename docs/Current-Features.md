@@ -117,7 +117,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 2. **Off by default**, and switched on per memory, never globally.
 3. **Guests can add the same things you can** — photos and videos, in the same formats and at the same size limits.
 4. **Guests can only add.** They still can't edit or delete anything, including their own uploads.
-5. **Guest uploads aren't attributed to anyone**, and only you, the owner, can remove them.
+5. **Guest uploads aren't attributed to anyone**, and only you, the owner, can remove them. They do, however, **count against your storage** (§13) — the album is yours, so the space is yours. The toggle says so before you switch it on.
 6. **Uploads are rate-limited** so a link that spreads further than you meant can't be used to flood your album. **Videos have their own, tighter limit** on top of that, because they're much larger files.
 
 ## 11. Your account
@@ -133,9 +133,22 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 2. **Deactivate an account** to sign it out immediately and block it from signing back in; their memories and photos are left untouched. Reactivate at any time.
 3. **Maintenance mode** freezes the whole app: everyone can still browse and download, but nothing can be created, changed, or deleted, and a banner explains why.
 
+## 13. Your storage
+
+1. **You get 20 GB.** A bar in the top bar of every page shows how much of it you've used and how much you have in total, so you can see it filling up rather than finding out at the worst moment.
+2. **It counts everything in the memories you own** — your own photos and videos, anything a contributor added, and anything a guest added through a public link. Storage follows the memory, not the person who uploaded.
+3. **What you upload into someone else's memory doesn't count against you.** It counts against them, because it's their album.
+4. **The bar changes colour as it fills** — it turns orange when you're past 80%, and again when you're full, so running out is something you see coming.
+5. **Uploading stops when you're full**, and the message tells you how much space you actually have left. Nothing is ever deleted to make room.
+6. **Being full only stops uploads.** You can still look at everything, share it, download it, and delete it — your memories are never held back from you.
+7. **A guest who tries to upload to a full album** is told the album can't accept more right now. They aren't shown anything about your account or how full it is.
+8. **Deleting frees space straight away**, whether you delete one photo, a selection, or a whole memory.
+
+> **What actually fills it:** an optimized photo and its thumbnail come to about 211 KB, so 20 GB is roughly 99,000 photos — realistically more than you'll ever add. Videos are stored exactly as uploaded and can reach 100 MB each, so in practice video is the thing that uses the space.
+
 ---
 
-## 13. Known gaps
+## 14. Known gaps
 
 Small things the requirements ask for that aren't in the app today. These are gaps in delivered work, **not** the same as the deferred items in [Future-Functionalities.md](Future-Functionalities.md).
 

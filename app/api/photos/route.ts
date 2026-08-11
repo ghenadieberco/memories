@@ -19,6 +19,12 @@ import { getSessionUser } from "@/lib/profile";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { photoKey, putObject, randomKeySegment } from "@/lib/storage";
 import {
+  StorageQuotaExceededError,
+  checkQuota,
+  getMemoryOwnerId,
+  getStorageUsage,
+} from "@/lib/storage-quota";
+import {
   MAX_VIDEO_BYTES,
   MAX_VIDEO_DURATION_SECONDS,
   sniffVideoFormat,
@@ -83,6 +89,20 @@ const targetSchema = z
   });
 
 /**
+ * Refuse an over-quota upload (FR-QUOTA-4 / FR-QUOTA-6).
+ *
+ * A guest gets a different message on purpose: they can neither see nor fix the
+ * owner's storage, and how full a stranger's account is isn't theirs to know.
+ * 413 either way — the request is too large for what the target can hold.
+ */
+function quotaRefusal(error: StorageQuotaExceededError, isGuest: boolean) {
+  return NextResponse.json(
+    { error: isGuest ? error.guestMessage : error.message },
+    { status: 413 },
+  );
+}
+
+/**
  * FR-VIDEO-5 — the only client-asserted field in the whole upload.
  *
  * Absent or unparseable is fine and means "no badge"; it is never a reason to
@@ -132,6 +152,15 @@ export async function POST(request: Request) {
 
   let memoryId: string;
   let uploadedBy: string | null;
+  /*
+   * FR-QUOTA-2 / D26 — whose 20 GB this upload spends.
+   *
+   * The MEMORY OWNER, always, which is deliberately not `uploadedBy`. A guest
+   * upload has no uploader to charge (`uploaded_by = NULL`), so charging the
+   * uploader would leave the one unauthenticated write path as the only one
+   * with no ceiling — the exact hole the quota exists to close.
+   */
+  let ownerId: string;
 
   if (token) {
     /*
@@ -173,6 +202,7 @@ export async function POST(request: Request) {
 
     memoryId = memory.id;
     uploadedBy = null;
+    ownerId = memory.ownerId;
   } else {
     // --- SIGNED-IN PATH ---
     const user = await getSessionUser();
@@ -204,6 +234,27 @@ export async function POST(request: Request) {
       }
       throw error;
     }
+
+    // Only now that access is proven may we look the memory up by id alone.
+    // A contributor uploading into someone else's memory spends THEIR quota.
+    const resolved = await getMemoryOwnerId(memoryId);
+    if (!resolved) {
+      return NextResponse.json({ error: "That memory isn't available." }, { status: 404 });
+    }
+    ownerId = resolved;
+  }
+
+  /*
+   * FR-QUOTA-4/5/6 — the quota guard, stage one.
+   *
+   * Read usage once, here, and check it twice: now, so an owner who is already
+   * full doesn't make us spend sharp on an image we're going to refuse; and
+   * again with the real stored size just before the PUT, once processing knows
+   * what that size is. Both happen before any byte reaches the bucket.
+   */
+  const usage = await getStorageUsage(ownerId);
+  if (usage.isFull) {
+    return quotaRefusal(new StorageQuotaExceededError(usage, file.size), isGuest);
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -246,6 +297,8 @@ export async function POST(request: Request) {
     values: typeof photos.$inferInsert;
     originalSizeBytes: number;
     optimizedSizeBytes: number;
+    /** FR-QUOTA-3: counted against the quota alongside the full-size asset. */
+    thumbnailSizeBytes: number;
   };
 
   if (video) {
@@ -305,6 +358,7 @@ export async function POST(request: Request) {
         width: processedPoster.width,
         height: processedPoster.height,
         optimizedSizeBytes: bytes.length,
+        thumbnailSizeBytes: processedPoster.thumbnail.length,
         originalSizeBytes: bytes.length,
         durationSeconds: durationSeconds ?? null,
         // D23: containers don't carry a reliable capture time. Null sorts the
@@ -314,6 +368,7 @@ export async function POST(request: Request) {
       },
       originalSizeBytes: bytes.length,
       optimizedSizeBytes: bytes.length,
+      thumbnailSizeBytes: processedPoster.thumbnail.length,
     };
   } else {
     // --- IMAGE (NFR-OPT): the mandatory pipeline, original discarded (D5) ---
@@ -350,13 +405,30 @@ export async function POST(request: Request) {
         width: processed.width,
         height: processed.height,
         optimizedSizeBytes: processed.optimizedSizeBytes,
+        thumbnailSizeBytes: processed.thumbnail.length,
         originalSizeBytes: processed.originalSizeBytes,
         takenAt: processed.takenAt,
         status: "ready",
       },
       originalSizeBytes: processed.originalSizeBytes,
       optimizedSizeBytes: processed.optimizedSizeBytes,
+      thumbnailSizeBytes: processed.thumbnail.length,
     };
+  }
+
+  /*
+   * FR-QUOTA-4/5 — the quota guard, stage two: the accurate one.
+   *
+   * Only now is the real stored size known. For an image it is far smaller than
+   * what was uploaded (the pipeline compresses ~12x and D5 discards the
+   * original), so checking the upload size earlier would have refused uploads
+   * that comfortably fit. Still before the PUT: nothing has been written yet.
+   */
+  try {
+    checkQuota(usage, stored.optimizedSizeBytes + stored.thumbnailSizeBytes);
+  } catch (error) {
+    if (error instanceof StorageQuotaExceededError) return quotaRefusal(error, isGuest);
+    throw error;
   }
 
   const objectKeys = stored.objects.map((object) => object.key);
