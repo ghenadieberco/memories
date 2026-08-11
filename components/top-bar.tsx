@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { Settings as SettingsIcon, Shield } from "lucide-react";
 
+import { Avatar } from "@/components/avatar";
+import { HeaderMenu } from "@/components/header-menu";
 import { SignOutButton } from "@/components/sign-out-button";
 import { StorageMeter } from "@/components/storage-meter";
 import { Wordmark } from "@/components/wordmark";
 import type { StorageUsage } from "@/lib/storage-quota";
 
 /*
- * Authenticated top bar — style guide §6 (glass bar, radius 22) and §6 Avatar
- * (circle, purple→orange gradient, white Fredoka initial).
+ * Authenticated top bar — style guide §6 (glass bar, radius 22).
  *
- * The gradient here and on the settings toggle are the only two places the
- * purple→orange gradient is allowed (style guide §2, §11).
+ * Two layouts around one breakpoint (style guide §9): above 640px the actions
+ * lay out across the bar, below it they collapse into the header menu. Both
+ * clusters are rendered and one is hidden in CSS, which keeps the bar a server
+ * component — only the menu's open/closed state needs the client.
  */
 
 export function TopBar({
@@ -24,8 +27,6 @@ export function TopBar({
   /** FR-QUOTA-7 — the owner's usage, read once by the layout. */
   storage?: StorageUsage;
 }) {
-  const initial = (name.trim()[0] ?? "?").toUpperCase();
-
   return (
     <header className="px-[22px] pt-[22px]">
       <div className="glass mx-auto flex max-w-[1100px] items-center gap-3 rounded-xl px-4 py-3">
@@ -33,35 +34,33 @@ export function TopBar({
           <Wordmark size="nav" />
         </Link>
 
-        {storage && <StorageMeter usage={storage} />}
+        <div className="hidden items-center gap-3 sm:flex">
+          {storage && <StorageMeter usage={storage} />}
 
-        {isAdmin && (
-          <Link href="/admin" className="btn ghost sm" aria-label="Admin console">
-            <Shield size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">Admin</span>
+          {isAdmin && (
+            <Link href="/admin" className="btn ghost sm" aria-label="Admin console">
+              <Shield size={15} aria-hidden="true" />
+              <span>Admin</span>
+            </Link>
+          )}
+
+          <Link
+            href="/settings"
+            className="btn ghost sm"
+            aria-label="Profile and settings"
+          >
+            <SettingsIcon size={15} aria-hidden="true" />
+            <span>Settings</span>
           </Link>
-        )}
 
-        <Link
-          href="/settings"
-          className="btn ghost sm"
-          aria-label="Profile and settings"
-        >
-          <SettingsIcon size={15} aria-hidden="true" />
-          <span className="hidden sm:inline">Settings</span>
-        </Link>
+          <SignOutButton />
 
-        <SignOutButton />
+          <Avatar name={name} />
+        </div>
 
-        <span
-          className="grid size-10 shrink-0 place-items-center rounded-full font-display text-[16px] font-semibold text-white"
-          style={{
-            background: "linear-gradient(135deg, var(--purple), var(--orange))",
-          }}
-          aria-hidden="true"
-        >
-          {initial}
-        </span>
+        <div className="sm:hidden">
+          <HeaderMenu name={name} isAdmin={isAdmin} storage={storage} />
+        </div>
       </div>
     </header>
   );

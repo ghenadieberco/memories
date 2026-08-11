@@ -169,6 +169,14 @@ Icons sit left of the label at 15px, gap 7px. Disabled: opacity .45, no shadow, 
 - **Memory card:** glass, radius 22px, cover with 4:3 aspect gradient + count chip; meta strip below (`Title` in Fredoka, `(Date)` in orange). Hover lifts `-4px`.
 - **Glass card:** general container for auth, detail header, settings, modals.
 
+### Header menu
+- Below the 640px breakpoint the top bar's whole action cluster — storage meter, Admin, Settings, Sign out, avatar — collapses into **one glass icon-button** (burger) at the bar's right edge. Above it, the actions lay out across the bar as before.
+- The closed button carries a **small orange dot** when storage is near-full or full, and names the state in its label ("Menu — storage nearly full"). A meter behind a tap can't warn on its own, and `FR-QUOTA-8` says running out should be anticipated.
+- Panel: glass, radius 22px, ~252px wide, anchored under the button's right edge, fades in over .18s.
+- Contents, in order: **identity** (30px avatar + name — the one thing the narrow bar has no room to say), the **storage meter** full-width with its figures showing, a hairline divider, then the **actions** — Admin (if any), Settings, Sign out.
+- Rows (`.menu-item`): full-width, left-aligned, 16px purple icon + label, transparent at rest, `rgba(122,47,242,.09)` on hover. Deliberately not `.btn` — a stack of ghost buttons inside a glass panel reads as a toolbar that fell over, not a menu.
+- It is a **disclosure, not an ARIA `menu`**: real links and a button, `aria-expanded`/`aria-controls` on the trigger, Escape closes and returns focus to it, a click outside closes it, and navigating closes it. `role="menu"` would promise arrow-key menu semantics these controls don't implement.
+
 ### Modal
 - Overlay: `rgba(44,26,74,.32)` + `blur(6px)`, centered, fades in.
 - Panel: glass card, max-width 440px, radius 26px, `max-height:88vh; overflow:auto`.
@@ -209,7 +217,7 @@ Icons sit left of the label at 15px, gap 7px. Disabled: opacity .45, no shadow, 
 - **Focus:** visible ring on every interactive element — `outline:3px solid rgba(122,47,242,.4); outline-offset:2px`.
 - **Keyboard:** the fullscreen viewer responds to arrow keys and Esc; all actions are real `<button>`s.
 - **Contrast:** body text uses `--ink` (not `--muted`) on glass; avoid placing `--muted` text on the lightest fills for essential content.
-- **Responsive:** single breakpoint at `640px` — the wordmark shrinks, page/detail headers stack, the detail cover goes full-width, and the photo grid tightens to ~104px cells. Grids use `auto-fill / minmax` so they reflow without fixed columns.
+- **Responsive:** single breakpoint at `640px` — the wordmark shrinks, **the top bar's actions collapse into the header menu** (§6), page/detail headers stack, the detail cover goes full-width, and the photo grid tightens to ~104px cells. Grids use `auto-fill / minmax` so they reflow without fixed columns.
 
 ---
 

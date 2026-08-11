@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { DEFAULT_STORAGE_QUOTA_BYTES, memories, photos, profiles } from "@/db/schema";
 import { db } from "@/lib/db";
+import { formatBytes } from "@/lib/format";
 
 /*
  * Per-user storage quota (FR-QUOTA-*, D26; plan §7c).
@@ -176,25 +177,3 @@ export async function assertQuota(
   return usage;
 }
 
-/**
- * Bytes as a short human string: "2.4 GB", "812 MB", "0 bytes".
- *
- * Binary units (1024) because that is what the quota is defined in — 20 GB here
- * means 21,474,836,480 bytes, so a meter reading "20 GB" when full is honest.
- */
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} bytes`;
-
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-
-  // One decimal below 10 ("2.4 GB"), none above it ("812 MB") — enough
-  // precision to watch a quota fill without reading like a disk utility.
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
-}

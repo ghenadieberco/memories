@@ -127,6 +127,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 2. **Change your display name.**
 3. **Change your password**, confirming the current one first.
 4. **Image optimization is shown as permanently on** and can't be switched off.
+5. **On a phone, everything in the top bar folds into one menu button.** Tapping it shows who you're signed in as, your storage bar, and the same actions — Admin if you have it, Settings, and Sign out. On a wider screen they sit out across the bar as usual.
 
 ## 12. Admin
 
@@ -136,7 +137,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 
 ## 13. Your storage
 
-1. **You get 20 GB.** A bar in the top bar of every page shows how much of it you've used and how much you have in total, so you can see it filling up rather than finding out at the worst moment.
+1. **You get 20 GB.** A bar in the top bar of every page shows how much of it you've used and how much you have in total, so you can see it filling up rather than finding out at the worst moment. On a phone it lives in the menu (§11), with an orange dot on the menu button when you're getting close, so you still see it coming without opening anything.
 2. **It counts everything in the memories you own** — your own photos and videos, anything a contributor added, and anything a guest added through a public link. Storage follows the memory, not the person who uploaded.
 3. **What you upload into someone else's memory doesn't count against you.** It counts against them, because it's their album.
 4. **The bar changes colour as it fills** — it turns orange when you're past 80%, and again when you're full, so running out is something you see coming.

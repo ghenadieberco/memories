@@ -60,3 +60,32 @@ export function mediaCountLabel(photoCount: number, videoCount: number): string 
   if (photoCount === 0) return videoCountLabel(videoCount);
   return `${photoCountLabel(photoCount)} · ${videoCountLabel(videoCount)}`;
 }
+
+/**
+ * Bytes as a short human string: "2.4 GB", "812 MB", "0 bytes" (FR-QUOTA-7).
+ *
+ * Binary units (1024) because that is what the quota is defined in — 20 GB
+ * there means 21,474,836,480 bytes, so a meter reading "20 GB" when full is
+ * honest.
+ *
+ * Lives here rather than beside the quota logic it serves because it is needed
+ * in the browser (the storage meter inside the header menu) and `storage-quota`
+ * reaches for the database on import. A pure formatter is the part that can
+ * cross that line; nothing else in this file imports anything either.
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} bytes`;
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  // One decimal below 10 ("2.4 GB"), none above it ("812 MB") — enough
+  // precision to watch a quota fill without reading like a disk utility.
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}

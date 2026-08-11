@@ -201,6 +201,57 @@
     background: rgba(255, 138, 61, 0.22);
   }
 
+  /* --- Header menu — style guide §6 --------------------------------- */
+
+  /*
+   * A row in the narrow-screen header menu. Deliberately not a `.btn`: a stack
+   * of ghost buttons inside a glass panel reads as a toolbar that fell over.
+   * A menu row is quiet at rest and highlights on hover, so the panel reads as
+   * one list rather than four controls.
+   */
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 13px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--purple);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.16s ease;
+  }
+  .menu-item:hover:not(:disabled) {
+    background: rgba(122, 47, 242, 0.09);
+  }
+  .menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* Style guide §8 — overlays fade in, briefly. The reduced-motion block at the
+     end of this file neutralises it. */
+  .menu-panel {
+    transform-origin: top right;
+    animation: menu-in 0.18s ease-out;
+  }
+
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* --- Inputs & labels — style guide §6 ----------------------------- */
 
   .lbl {

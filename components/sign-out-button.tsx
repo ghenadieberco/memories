@@ -20,7 +20,12 @@ import { authClient } from "@/lib/auth/client";
  * serve a cached authenticated shell, which looks exactly like sign-out having
  * failed.
  */
-export function SignOutButton() {
+export function SignOutButton({
+  variant = "bar",
+}: {
+  /** `bar` = ghost button in the wide top bar. `menu` = row in the header menu. */
+  variant?: "bar" | "menu";
+} = {}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -42,11 +47,11 @@ export function SignOutButton() {
       type="button"
       onClick={handleSignOut}
       disabled={busy}
-      className="btn ghost sm"
+      className={variant === "menu" ? "menu-item" : "btn ghost sm"}
       aria-label="Sign out"
     >
-      <LogOut size={15} aria-hidden="true" />
-      <span className="hidden sm:inline">{busy ? "Signing out…" : "Sign out"}</span>
+      <LogOut size={variant === "menu" ? 16 : 15} aria-hidden="true" />
+      <span>{busy ? "Signing out…" : "Sign out"}</span>
     </button>
   );
 }
