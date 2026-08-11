@@ -133,7 +133,7 @@ export function HeaderMenu({
       {open && (
         <div
           id="header-menu"
-          className="menu-panel glass absolute right-0 top-[calc(100%+10px)] z-40 w-[252px] max-w-[calc(100vw-44px)] rounded-xl p-2"
+          className="menu-panel absolute right-0 top-[calc(100%+10px)] z-40 w-[252px] max-w-[calc(100vw-44px)] rounded-xl p-2"
         >
           {/* Who you are — the one thing the narrow bar has no room to say. */}
           <div className="flex items-center gap-2.5 px-2 py-1.5">
