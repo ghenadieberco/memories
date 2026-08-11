@@ -225,6 +225,18 @@ Added 10 August 2026, promoted from the deferred backlog (`FF-DL`). The governin
 | FR-SOC-4 | A user shall be able to **tag a person** in a photo — either another app user or a named person label. |
 | FR-SOC-5 | Tags shall be visible on the photo and usable as a **filter** criterion within a memory. A user may remove a tag; a tagged person (if an app user) may remove a tag of themselves. |
 
+### 3.8 App version (FR-VER-*)
+
+Added 11 August 2026 at the owner's request. The governing decision is **D28**: the version is **derived from git history, never stored**, and **every commit moves it**.
+
+| ID | Requirement |
+|---|---|
+| FR-VER-1 | The application shall carry a **semantic version** (`MAJOR.MINOR.PATCH`) that **increases on every commit**, derived from the repository's own history rather than held in a file that has to be kept up to date by hand. |
+| FR-VER-2 | The running version shall be **visible on every page**, in a footer, to signed-in users and guests alike — including the landing page, the auth screens and the public `/m/[token]` link. It is informational only and reveals nothing about any user. |
+| FR-VER-3 | The bump for each commit shall be read from its **conventional-commit prefix**: `feat:` raises the minor, a `!` marker or a `BREAKING CHANGE:` footer raises the major, and **anything else — including a commit with no prefix — raises the patch**, so no commit ever leaves the version unchanged. |
+| FR-VER-4 | The version shall be **fixed at build time** and shall describe the exact commit the running image was built from. A build made outside the deployment pipeline shall report `0.0.0-dev` rather than guess a number. |
+| FR-VER-5 | Deriving a version shall **fail loudly** where the history needed to compute it is unavailable (a shallow clone), rather than report a stale or plausible-but-wrong number. |
+
 ---
 
 ## 4. Data model
@@ -408,6 +420,7 @@ Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). On
 - **Photo/object storage:** Tigris (Fly-native, S3-compatible) by default, or Cloudflare R2 (free egress) — both S3-compatible, so the storage code is identical either way.
 - **Email:** Resend (verification, reset, share notifications).
 - **Delivery:** deployed over HTTPS/TLS with a custom domain; secrets held in the platform's secret store, never in source control.
+- **Release:** deployment is **automated from the `main` branch** (GitHub Actions → Fly), gated on lint and typecheck, and stamps the build with the version from FR-VER-1. Deploying by hand from a working copy is not the supported path (D28).
 - Full, step-by-step deployment instructions live in the companion **Implementation Plan**; this section records the chosen infrastructure at requirements level only.
 
 ---

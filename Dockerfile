@@ -15,6 +15,12 @@ FROM node:24-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Version shown in the footer (FR-VER-1, D28). Derived from git history by CI
+# and passed in here, because `.git` is dockerignored — the build stage has no
+# repository to read. Left unset (a local `fly deploy`, say) the app reports
+# `0.0.0-dev`, which is the honest answer for an image CI never saw.
+ARG APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION
 # Next builds without secrets present: lib/env.ts validates lazily, at first use.
 RUN npm run build && npm run db:bundle-migrate
 

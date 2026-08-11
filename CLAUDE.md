@@ -12,6 +12,8 @@ Beyond the phased plan, three owner-requested additions are live: **guest photo 
 
 **Phase 6 shipped the first three deferred items** (10 August 2026): **download** (`FR-DL-*`, D24), **video support** (`FR-VIDEO-*`, D23), and an **enlarged viewer with zoom** (`FR-VIEW-8/9`). Only the slideshow (`FF-SLIDE`) remains deferred. Two things about this are easy to get wrong later: **video is stored as uploaded, so D5's "discard the original" and NFR-OPT are image-only rules**, and **downloads need a CORS rule on the bucket** (`npm run storage:cors`) — without it downloading fails while every other feature works.
 
+**Phase 9 (11 August 2026) added app versioning and moved deployment into CI** (`FR-VER-*`, D28). The version is derived from git history rather than stored, shows in a footer on every page, and **pushing to `main` is now the only supported way to deploy**.
+
 Two live workarounds for defects in `@neondatabase/auth@0.4.2-beta`, both documented in the plan and both to be re-tested when the SDK updates: `emailOtp.resetPassword` points at a 404 path (see `neonAuthPost`), and `auth.middleware()` redirects every non-GET request even with a valid session (see `proxy.ts` — this one silently broke every server action).
 
 ---
@@ -27,6 +29,7 @@ The `docs/` folder is the source of truth for this project. **Before writing or 
 | [docs/UI-Style-Guide.md](docs/UI-Style-Guide.md) | **How it looks and reads** — color tokens, typography, glassmorphism recipe, spacing/radius, components, motion, a11y, voice & copy | Any UI, styling, or user-facing copy work |
 | [docs/Current-Features.md](docs/Current-Features.md) | **What the app does today** — a plain-language catalogue of shipped behavior, plus a short list of known gaps | Orienting on the live product; checking whether something already exists before building it |
 | [docs/Future-Functionalities.md](docs/Future-Functionalities.md) | **What is *not* in the build** — Section 1 deferred (`FF-*`, wanted later), Section 2 out of scope (declined) | Before starting anything that isn't already an `FR-`; to check whether an idea is parked or refused |
+| [README.md](README.md) | **Running it locally and shipping it** — setup, scripts, deploying, versioning | Environment setup; anything touching the build, the deploy workflow, or the version |
 | [docs/memories-prototype.jsx](docs/memories-prototype.jsx) | Reference implementation of the intended look and interactions (single-file React prototype, mock data) | Building a screen or component — mine it for layout and behavior, don't ship it as-is |
 
 **Conflict rule (from the plan, Section 0):** the requirements doc wins on *what*, the implementation plan wins on *how*. The style guide wins on appearance and copy. The prototype is illustrative, not authoritative.
@@ -38,6 +41,7 @@ The `docs/` folder is the source of truth for this project. **Before writing or 
 - **Build one phase at a time**, in order, per the plan's Section 8 (Phase 0 foundation → 1 auth/account → 2 memories & photos core → 3 sharing & public links → 4 social). Finish a phase to its acceptance criteria before starting the next.
 - **Treat the plan's Section 9 "Assumed defaults" (D1–D12) as binding** unless the user says otherwise. They resolve the requirements doc's open questions — don't re-open them mid-task.
 - **Cite requirement IDs** (`FR-MEM-9`, `NFR-OPT`, `D5`, …) in commit messages, PR descriptions, and code comments where a non-obvious rule is being implemented.
+- **Commit messages now set the app's version** (`FR-VER-3`, D28), so the conventional-commit prefix is functional, not cosmetic: `feat:` raises the minor, `!` or a `BREAKING CHANGE:` footer raises the major, anything else raises the patch. Don't write `feat:` for a typo fix.
 - **Don't build anything in Future-Functionalities Section 2 "Out of scope"** (moved there from the plan's Section 12): face detection/recognition, timeline/map/search views, native mobile, user-configurable image optimization. Keep the schema and UI free of hooks for these.
 - **Don't build Future-Functionalities Section 1 "Deferred" (`FF-*`) either** — now just the **slideshow** (`FF-SLIDE`). It is wanted eventually but unspecified; wait to be asked, and specify it into the requirements doc before writing code. (Download, video, and the larger viewer were the other three; they shipped on 10 August 2026 and are no longer on that list.)
 - **When an `FF-*` item ships, move it in the same change**: delete its entry from Future-Functionalities and describe the new behavior in Current-Features, in that document's plain, user-facing voice. Give it a real `FR-` ID in the requirements doc on the way through. The two lists are meant to stay complementary — anything appearing in both, or in neither, is a bug in the docs.
@@ -61,6 +65,8 @@ These come from the requirements' security/privacy sections and the plan's Secti
 - **Secrets live in Fly secrets / `.env.local`, never in the repo.** `.env.local` must stay gitignored.
 - **Every mutation calls `assertWritable(userId)`** (D22) so maintenance mode actually freezes the app. If you add a server action or a write route, add the guard — there is no framework-level enforcement.
 - **Joining `neon_auth.user` to `profiles` requires `u.id::text`** — the former is `uuid`, the latter `text`.
+- **Deploy by pushing to `main`; never run `fly deploy` yourself** (D28). GitHub Actions is the only supported path — it gates on lint and typecheck and stamps the build with the derived version. A local deploy ships an app labelled `0.0.0-dev`.
+- **The version is derived from git history and never written back** (`FR-VER-1`, D28). Don't add a bump step, don't update `package.json`'s `version` field (it is inert and deliberately left alone), and don't introduce a release-tagging tool — a bump commit would itself change the history the version is computed from. `version.config.json` holds only the baseline.
 
 ---
 

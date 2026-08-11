@@ -193,6 +193,12 @@ Icons sit left of the label at 15px, gap 7px. Disabled: opacity .45, no shadow, 
 - Thumbnail: 1:1, radius 16px, soft purple shadow; hover scales to 1.035.
 - Fullscreen viewer: dark glass scrim `rgba(30,16,54,.72)` + `blur(16px)`; large image up to `min(78vw,760px)`; circular translucent prev/next controls that **disable (opacity .28) at the ends** — no wraparound; white counter in Fredoka.
 
+### Version footer
+- One centred caption line — `Memories v1.4.2` — at the bottom of **every** page, signed in or not (`FR-VER-2`).
+- Caption treatment: 12.5px, Nunito 600, `--muted`. **No glass, no border, no rule above it** — it sits directly on the cream canvas.
+- Padding `8px 22px 18px`; the version digits are `tabular-nums` so the line doesn't shift width as the number grows.
+- **It is never the bold element on a screen** (§11). If a page has to lose something at small widths, this goes quietly rather than competing.
+
 ---
 
 ## 7. Iconography

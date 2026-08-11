@@ -148,9 +148,15 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 
 > **What actually fills it:** an optimized photo and its thumbnail come to about 211 KB, so 20 GB is roughly 99,000 photos — realistically more than you'll ever add. Videos are stored exactly as uploaded and can reach 100 MB each, so in practice video is the thing that uses the space.
 
+## 14. Which version you're looking at
+
+1. **Every page has a version at the bottom** — something like `Memories v1.4.2`. It's on the landing page, the sign-in screen, your albums, and public links, so a screenshot always says which version it came from.
+2. **The number goes up with every change to the app.** A new feature moves the middle number, a fix or a small change moves the last one.
+3. **You don't have to do anything to keep it right.** The version is worked out from the app's own history when it's built, so it always matches exactly what you're looking at.
+
 ---
 
-## 14. Known gaps
+## 15. Known gaps
 
 Small things the requirements ask for that aren't in the app today. These are gaps in delivered work, **not** the same as the deferred items in [Future-Functionalities.md](Future-Functionalities.md).
 

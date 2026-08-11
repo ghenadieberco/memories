@@ -166,6 +166,7 @@ curl "localhost:3000/api/health?deep=1" # also writes + reads a real storage obj
 | `npm run db:studio` | Browse the database in Drizzle Studio |
 | `npm run db:bundle-migrate` | Bundle the migrator for the container (used by the Docker build) |
 | `npm run storage:cors -- <origin>` | **Run once per bucket.** Allows the browser to `fetch` stored files, which downloads need. Without it, downloading fails while everything else works. Pass the production origin — bare, it only authorises `localhost` |
+| `npm run version:print` | Print the version derived from git history — the number the footer will show |
 
 ## Building the container
 
@@ -173,6 +174,47 @@ curl "localhost:3000/api/health?deep=1" # also writes + reads a real storage obj
 docker build -t memories .
 docker run --rm -p 3000:3000 --env-file .env.local memories
 ```
+
+An image built this way reports its version as `0.0.0-dev`, because `.git` is
+dockerignored and no `APP_VERSION` build arg was passed. That's expected locally — see
+Deploying.
+
+---
+
+## Deploying
+
+**Push to `main`. That is the whole procedure, and the only supported one.**
+
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) lints, typechecks, derives the
+version from git history, and runs `flyctl deploy`; migrations run from `fly.toml`'s
+`release_command`. Needs one repository secret, `FLY_API_TOKEN`:
+
+```bash
+fly tokens create deploy -x 8760h    # GitHub → Settings → Secrets and variables → Actions
+```
+
+To re-ship the current `main` without a new commit, use **Run workflow** in the Actions tab
+rather than an empty commit — an empty commit would bump the version for no change.
+
+### Versioning
+
+The version is **computed from git history, never stored** — nothing writes it back, so
+there's no bump commit and no file to keep up to date. [version.config.json](version.config.json)
+holds the baseline, and the commit that last *changed* that file **is** that version;
+everything after it is replayed from the commit messages:
+
+| Commit subject | Effect |
+|---|---|
+| `feat: …` | minor +1 |
+| `feat!: …` or a `BREAKING CHANGE:` footer | major +1 |
+| anything else, prefix or not | patch +1 |
+
+So every commit moves the number. To set a new floor by hand — declaring `2.0.0`, say —
+edit `version.config.json`; that commit then *is* `2.0.0`.
+
+⚠️ **A local `fly deploy` still works and deliberately looks wrong.** With no `APP_VERSION`
+build arg the footer reads `0.0.0-dev`, which is the tell that an image skipped the
+pipeline. Redeploy through CI rather than leaving it live.
 
 ---
 
@@ -226,7 +268,8 @@ db/           schema.ts, migrations/, migrate.ts
 lib/          env, db, access control, storage, image/video pipelines, sharing
 docs/         requirements, implementation plan, style guide, prototype,
               current features, future functionalities (deferred + out of scope)
-scripts/      build tooling, bucket CORS, one-off backfills
+scripts/      build tooling, version derivation, bucket CORS, one-off backfills
+.github/      the deploy workflow — push to main ships the app
 ```
 
 `docs/` is the source of truth for this project — read the relevant document before

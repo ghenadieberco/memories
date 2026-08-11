@@ -13,7 +13,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:bundle-migrate": "node scripts/bundle-migrate.mjs",
     "storage:cors": "tsx scripts/set-bucket-cors.ts",
-    "storage:backfill-thumb-sizes": "tsx scripts/backfill-thumbnail-sizes.ts"
+    "storage:backfill-thumb-sizes": "tsx scripts/backfill-thumbnail-sizes.ts",
+    "version:print": "node scripts/compute-version.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",

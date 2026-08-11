@@ -1,0 +1,4 @@
+{
+  "$comment": "Version baseline (D28). `base` is the version at the commit that last CHANGED this file — editing it declares a new baseline. Everything after that commit is derived from git history by scripts/compute-version.mjs. Nothing writes this file automatically.",
+  "base": "1.0.0"
+}

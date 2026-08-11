@@ -1,0 +1,75 @@
+# Deploy to Fly.io on every push to main (plan §11.7, D28).
+#
+# This is the *only* deploy path. Running `fly deploy` from a laptop still
+# works, but it builds from whatever is in that working tree and — with no
+# APP_VERSION build arg — ships an app that reports `0.0.0-dev`. Push instead.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets a failed deploy be retried, or the current main be re-shipped, without
+  # an empty commit.
+  workflow_dispatch:
+
+# Read-only: the version is derived from history, never written back (D28), so
+# nothing here needs to push to the repository.
+permissions:
+  contents: read
+
+# One deploy at a time, and never cancel one in flight — an interrupted
+# `flyctl deploy` can leave a release half-applied. Queue instead.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # Runs `next typegen` first, so this also catches broken route types.
+      - run: npm run typecheck
+
+  deploy:
+    name: Deploy to Fly
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The version is replayed from the commits since the baseline, so the
+          # full history has to be here. compute-version.mjs hard-fails on a
+          # shallow clone rather than reporting a stale number.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Derive app version
+        id: version
+        run: |
+          version="$(node scripts/compute-version.mjs)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Deploying version $version" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Migrations run automatically through fly.toml's release_command.
+      - name: Deploy
+        run: flyctl deploy --remote-only --build-arg APP_VERSION="${{ steps.version.outputs.version }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

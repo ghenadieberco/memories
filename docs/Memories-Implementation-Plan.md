@@ -125,6 +125,11 @@ memories/
 ├─ Dockerfile
 ├─ fly.toml
 ├─ next.config.js            # output: 'standalone' for small images
+├─ version.config.json       # version baseline only (§7d, D28)
+├─ .github/workflows/
+│  └─ deploy.yml             # the only deploy path: push to main (§11.7)
+├─ scripts/
+│  └─ compute-version.mjs    # derives the version from git history (FR-VER-1)
 ├─ app/
 │  ├─ (auth)/                # sign-in / sign-up / reset (Neon Auth SDK)
 │  ├─ (app)/                 # authenticated area; layout guards the session
@@ -433,6 +438,31 @@ Three details that are easy to get wrong:
 
 ---
 
+## 7d. App version derivation (FR-VER-*, D28)
+
+The version is **computed, never stored**. Three moving parts:
+
+| Piece | Role |
+|---|---|
+| `version.config.json` | Holds `base` only. The commit that last **changed** this file is the baseline, and that commit *is* `base`. Editing it declares a new floor — the manual override for a major release. |
+| `scripts/compute-version.mjs` | Replays every commit since the baseline and prints the version. `npm run version:print`. |
+| `.github/workflows/deploy.yml` | Runs the script and passes the result to `flyctl deploy --build-arg APP_VERSION=…`. |
+
+**Replay rules,** oldest commit first (`FR-VER-3`):
+
+```
+feat:                       -> minor++, patch = 0
+`!` marker / BREAKING CHANGE: -> major++, minor = patch = 0
+anything else (incl. no prefix) -> patch++
+merge commits               -> skipped
+```
+
+**Reaching the browser.** `.git` is dockerignored, so the image cannot derive its own version. CI computes it and passes it as a build arg; the Dockerfile turns that into `NEXT_PUBLIC_APP_VERSION`, which `next.config.ts` pins into `env` so Next inlines it at build time. `components/app-footer.tsx` reads it as a server component — no client JavaScript, nothing to fetch at runtime. Locally, `next.config.ts` falls back to running the script directly, so `npm run dev` shows a real number.
+
+> ⚠️ **Two failure modes worth knowing before you touch this.** The replay is **`--topo-order`, not date order** — commits sharing a second can sort arbitrarily, and a merged branch's `feat:` landing ahead of a `BREAKING CHANGE:` would have its minor bump wiped by the major reset, so the same history would yield two different versions. And a **shallow clone hard-fails by design**: truncated history resolves the baseline to the grafted tip and returns a stale, entirely plausible number. Keep `fetch-depth: 0`.
+
+---
+
 ## 8. Phased build plan
 
 ### Phase 0 — Foundation
@@ -491,6 +521,19 @@ Owner-requested, specified 10 August 2026. The app's front door: `/` shows a mar
 
 **Acceptance:** signed out, `/` shows the landing page; signed in, `/` still lands on Memories without a flash of marketing; the carousel advances on its own, stops while hovered or focused, and is fully drivable by arrows, dots, and the keyboard; with `prefers-reduced-motion` it does not auto-advance and does not animate, but still works by hand; the page is legible at 390px wide; the wordmark on a public album leads to the landing page.
 
+### Phase 9 — Versioning & automated deploys (FR-VER-*, D28)
+Owner-requested, specified 11 August 2026. Gives the app a version that moves on every commit and moves deployment off the laptop and into CI. See §7d for the mechanism.
+
+1. **`version.config.json`** — the baseline, `1.0.0`. Its own commit is that version.
+2. **`scripts/compute-version.mjs`** — the replay, wired up as `npm run version:print`.
+3. **`Dockerfile` + `next.config.ts`** — `ARG APP_VERSION` → `NEXT_PUBLIC_APP_VERSION`, inlined at build; git fallback for local development.
+4. **`components/app-footer.tsx`** in the root layout — every page, every visitor (`FR-VER-2`).
+5. **`.github/workflows/deploy.yml`** — lint + typecheck, then derive and deploy.
+
+> ⚠️ **`fetch-depth: 0` is load-bearing.** Without the full history the baseline lookup lands on the grafted tip and returns a stale version that looks completely reasonable. The script refuses to run on a shallow clone for exactly this reason — if you ever see it fail that way, the checkout is what to fix, not the script.
+
+**Acceptance:** `npm run version:print` prints `1.0.0` at the baseline commit and moves per `FR-VER-3` thereafter; the footer shows the same number on the landing page, an auth screen, an album, and a public `/m/[token]` link; a push to `main` deploys with the derived version in the Actions summary; a build with no `APP_VERSION` reports `0.0.0-dev`.
+
 ---
 
 ## 9. Assumed defaults (resolving the requirements' open questions)
@@ -541,6 +584,15 @@ Owner-requested, specified 10 August 2026. The app's front door: `/` shows a mar
   - **(c) Carousel style: coverflow.** Rejected an orbiting ring (most literally 3D, but text on the angled cards is hard to read and it is fussy on a phone) and a depth stack (calm, but barely reads as 3D). Coverflow keeps the centre card square to the viewer and fully legible, which matters because these cards *are* the argument for signing up.
   - **The style guide's glass recipe is deliberately overridden on the centre card.** §4's `rgba(255,255,255,0.55)` assumes glass over ambient light; in a coverflow the cards overlap *each other*, and at 55% the card behind renders straight through the one in front — two features' text superimposed, which is what the first build did. The active card sits at 0.9 opacity and neighbours keep the translucency, becoming the "colourful light behind" themselves. Neighbours also blur by distance, which reads as depth and stops their copy competing with the centre card's.
   - **The page reads no user data at all** (`FR-LAND-10`), which is the cheapest possible answer to "is the new unauthenticated route safe?" — it has no facts about anybody to leak. Keep it that way: the temptation later will be a live photo count or a real example album, and either one drags this page into the access model.
+
+- **D28 Versioning: derived from git history, and CI is the only way to deploy.** Four choices the owner settled on 11 August 2026 (`FR-VER-*`).
+  - **(a) SemVer, driven by conventional commits.** Rejected CalVer (`2026.08.3`), which is arguably the more honest format for a continuously-deployed app with no downstream consumers and no compatibility contract to signal — but the history already carries `feat:`/`fix:` prefixes, and the owner chose the familiar triple knowing the trade. Be clear-eyed about what the number means here: strict SemVer versions *releases*, not commits, so with a commit-level bump the minor digit counts **features shipped** rather than marking a release boundary. It will climb quickly.
+  - **(b) Derived, never stored.** The version is a pure function of the repository — nothing writes it back to `package.json`. This was not only a tidiness choice: a bot commit that records the version **is itself a commit**, so it changes the very history the version is computed from. The two mechanisms would chase each other. Deriving instead removes the bump commit, the workflow's write access to `main`, and the possibility of the number disagreeing with the code it labels. **`package.json`'s own `version` field is deliberately left untouched and unused** — the package is `private`, so it is inert, and mirroring the baseline into a second place is exactly the drift this decision exists to avoid.
+  - **(c) The baseline is the commit that last *changed* `version.config.json`,** and that commit *is* `base`. This is what makes the scheme self-consistent with no tags and no stored SHA: editing the file to declare `2.0.0` makes that very commit `2.0.0`, with nothing else to keep in sync. It also gives the owner a manual override — the derived number is automatic, but the floor is always a hand-editable declaration. Rejected a `v1.0.0` git tag as the marker (the standard `git describe` approach) because a tag is state living outside the working tree: it has to be pushed separately, and a clone without tags silently computes a different answer.
+  - **(d) Every commit moves the number.** An unprefixed commit is a patch, not a no-op, because the owner's rule was "increase on every commit". Merge commits are the one exception — their contents are already counted through the branch commits, so counting both would double-bump.
+  - **Two things that look like details and are not.** The replay uses **`--topo-order`, not date order**: commits made in the same second can sort arbitrarily, and if a merged branch's `feat:` lands ahead of a `BREAKING CHANGE:`, the major bump resets the minor it just added and the same history yields two different versions. And the script **hard-fails on a shallow clone** — a truncated history resolves the baseline to the grafted tip and returns a stale number that looks entirely plausible, which is worse than an error. Hence `fetch-depth: 0` in the workflow.
+  - **CI is now the only supported deploy path**, at the owner's direction — no mixing. `.git` is dockerignored, so the image cannot derive its own version; CI computes it and passes `--build-arg APP_VERSION`. A local `fly deploy` still runs, but with no build arg it ships an app reporting **`0.0.0-dev`**, which is the intended tell that an image never went through the pipeline.
+  - **Cost:** deployment now depends on GitHub Actions and a `FLY_API_TOKEN` secret, and a red lint or typecheck blocks shipping. That gate is the point, but it means a hotfix cannot skip it — `workflow_dispatch` re-runs a deploy without an empty commit, and a genuine emergency falls back to a local `fly deploy` at the cost of a `0.0.0-dev` label.
 
 ---
 
@@ -658,11 +710,21 @@ fly secrets set \
 ```
 Migrations run automatically via the `release_command`; to run manually: `fly ssh console -C "npm run db:migrate"`.
 
-### 11.7 Deploy
+### 11.7 Deploy — push to `main` (D28)
+
+**Deployment is automated and there is only one path: push to `main`.** `.github/workflows/deploy.yml` lints, typechecks, derives the version (`FR-VER-1`) and runs `flyctl deploy`, passing the version in as a build arg. Migrations still run through `fly.toml`'s `release_command`.
+
+One-time setup — mint a deploy token and store it as the `FLY_API_TOKEN` repository secret:
+
 ```bash
-fly deploy
+fly tokens create deploy -x 8760h        # then: GitHub → Settings → Secrets → Actions
 ```
-Verify: `fly logs`, open the `*.fly.dev` URL, register a test user, upload a photo, open a public link.
+
+Verify after a push: watch the run in the Actions tab (the summary names the version being shipped), then `fly logs`, open the site, and confirm the footer shows the expected number.
+
+**Re-running without a new commit:** use the workflow's `workflow_dispatch` trigger ("Run workflow" in the Actions tab) rather than an empty commit — an empty commit would bump the version for no change.
+
+⚠️ **A local `fly deploy` still works, and deliberately looks wrong when it happens.** `.git` is dockerignored, so the container cannot derive its own version; with no `APP_VERSION` build arg the app reports **`0.0.0-dev`** in the footer. That is the tell that an image bypassed the pipeline — treat it as a signal to redeploy through CI, not as a bug.
 
 ### 11.8 Custom domain + TLS
 ```bash
@@ -674,7 +736,7 @@ Then update `NEXT_PUBLIC_APP_URL` and Neon Auth's **trusted domains / redirect U
 - Region/scale: `fly scale count 1` (bump when needed); keep `min_machines_running = 1` so sessions and image caching are warm.
 - Backups/branching: use Neon branches for staging/preview and Neon's point-in-time restore.
 - Monitoring: `fly logs`, Fly metrics, and Neon's dashboard for DB load.
-- CI/CD (optional): a GitHub Action that runs `flyctl deploy` on push to `main`, using a `FLY_API_TOKEN` secret.
+- CI/CD: **done, and now the only deploy path** — `.github/workflows/deploy.yml` runs `flyctl deploy` on push to `main` using a `FLY_API_TOKEN` secret (§11.7, D28). Deploys are serialised (`concurrency`) and never cancelled mid-flight, since an interrupted `flyctl deploy` can leave a release half-applied.
 
 ---
 

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Fredoka, Nunito } from "next/font/google";
+
+import { AppFooter } from "@/components/app-footer";
 import "./globals.css";
 
 /*
@@ -41,6 +43,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <span className="orb orb-o2" />
         </div>
         {children}
+        {/*
+          Every page group puts `flex-1` on its <main>, so the footer is pushed
+          to the bottom on short pages rather than floating mid-screen.
+        */}
+        <AppFooter />
       </body>
     </html>
   );
