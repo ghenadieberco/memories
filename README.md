@@ -190,8 +190,17 @@ version from git history, and runs `flyctl deploy`; migrations run from `fly.tom
 `release_command`. Needs one repository secret, `FLY_API_TOKEN`:
 
 ```bash
-fly tokens create deploy -x 8760h    # GitHub → Settings → Secrets and variables → Actions
+fly tokens create deploy -x 8760h
 ```
+
+That command only **prints** a token — it doesn't upload anything. Copy the output and add
+it by hand: GitHub → Settings → Secrets and variables → Actions → **New repository secret**,
+named `FLY_API_TOKEN`.
+
+⚠️ **Paste the whole value, including the leading `FlyV1 ` and the space after it.** The
+token is two space-separated parts and looks like it has a stray prefix; trimming it, or
+copying only the `fm2_…` half, produces `Error: no access token available. Please login with
+'flyctl auth login'` — which reads like a CLI problem and isn't.
 
 To re-ship the current `main` without a new commit, use **Run workflow** in the Actions tab
 rather than an empty commit — an empty commit would bump the version for no change.

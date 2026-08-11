@@ -46,7 +46,6 @@ jobs:
     name: Deploy to Fly
     needs: verify
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,6 +64,19 @@ jobs:
           version="$(node scripts/compute-version.mjs)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Deploying version $version" >> "$GITHUB_STEP_SUMMARY"
+
+      # flyctl's own error for a missing token is "no access token available,
+      # please login with flyctl auth login" — which sends you off configuring
+      # a CLI when the real problem is an unset repository secret. Say so.
+      - name: Check the Fly token is present
+        run: |
+          if [ -z "${{ secrets.FLY_API_TOKEN }}" ]; then
+            echo "::error::FLY_API_TOKEN is not set. Create a token with" \
+              "\`fly tokens create deploy -x 8760h\` and paste the WHOLE value" \
+              "(including the leading 'FlyV1 ' and its space) into" \
+              "Settings -> Secrets and variables -> Actions -> New repository secret."
+            exit 1
+          fi
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 

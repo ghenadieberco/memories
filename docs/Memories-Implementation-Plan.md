@@ -717,8 +717,13 @@ Migrations run automatically via the `release_command`; to run manually: `fly ss
 One-time setup — mint a deploy token and store it as the `FLY_API_TOKEN` repository secret:
 
 ```bash
-fly tokens create deploy -x 8760h        # then: GitHub → Settings → Secrets → Actions
+fly tokens create deploy -x 8760h
 ```
+
+The command only **prints** the token; adding it to GitHub is a separate manual step
+(Settings → Secrets and variables → Actions → New repository secret). **Paste the whole
+value including the leading `FlyV1 ` and its space** — the token is two space-separated
+parts, and a trimmed one fails with `no access token available. Please login with 'flyctl auth login'`, which misdirects you toward the CLI. The workflow checks for an empty token up front and says this, rather than letting flyctl report it.
 
 Verify after a push: watch the run in the Actions tab (the summary names the version being shipped), then `fly logs`, open the site, and confirm the footer shows the expected number.
 
