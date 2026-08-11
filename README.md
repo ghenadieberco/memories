@@ -221,6 +221,12 @@ everything after it is replayed from the commit messages:
 So every commit moves the number. To set a new floor by hand — declaring `2.0.0`, say —
 edit `version.config.json`; that commit then *is* `2.0.0`.
 
+⚠️ **The footer in `npm run dev` goes stale as soon as you commit.** The version is resolved
+once, when `next.config.ts` is loaded, and inlined for the life of the process — so a dev
+server started before a commit keeps showing the older number, and local will disagree with
+production. That's expected, not a bug; **restart the dev server** to refresh it. When the two
+disagree, `npm run version:print` is the authority.
+
 ⚠️ **A local `fly deploy` still works and deliberately looks wrong.** With no `APP_VERSION`
 build arg the footer reads `0.0.0-dev`, which is the tell that an image skipped the
 pipeline. Redeploy through CI rather than leaving it live.

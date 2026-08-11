@@ -459,6 +459,8 @@ merge commits               -> skipped
 
 **Reaching the browser.** `.git` is dockerignored, so the image cannot derive its own version. CI computes it and passes it as a build arg; the Dockerfile turns that into `NEXT_PUBLIC_APP_VERSION`, which `next.config.ts` pins into `env` so Next inlines it at build time. `components/app-footer.tsx` reads it as a server component — no client JavaScript, nothing to fetch at runtime. Locally, `next.config.ts` falls back to running the script directly, so `npm run dev` shows a real number.
 
+> **In development the footer goes stale the moment you commit.** The version is resolved once, at config load, and inlined for the life of the process — so a `next dev` server started before a commit keeps serving the older number and local will disagree with production. This is the build-time guarantee (`FR-VER-4`) behaving as specified, not a defect: restart the dev server to refresh, and treat `npm run version:print` as the authority. Resist "fixing" it by resolving the version per request — that buys freshness on a number that only matters in production, at the cost of a subprocess and a `git log` on every page render.
+
 > ⚠️ **Two failure modes worth knowing before you touch this.** The replay is **`--topo-order`, not date order** — commits sharing a second can sort arbitrarily, and a merged branch's `feat:` landing ahead of a `BREAKING CHANGE:` would have its minor bump wiped by the major reset, so the same history would yield two different versions. And a **shallow clone hard-fails by design**: truncated history resolves the baseline to the grafted tip and returns a stale, entirely plausible number. Keep `fetch-depth: 0`.
 
 ---
