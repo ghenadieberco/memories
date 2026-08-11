@@ -182,6 +182,32 @@ All of these become **Fly secrets** in production (Section 11) — never commit 
 
 ---
 
+## 4a. Local development environment (added 10 August 2026)
+
+Until this date `.env.local` held **production** values for everything except `NEXT_PUBLIC_APP_URL`: `next dev` read and wrote the live database and uploaded into the live bucket. Development now has its own of both.
+
+| | Development | Production |
+|---|---|---|
+| Neon branch | `dev` (endpoint `ep-wispy-silence-aw8ewn9p`) | default branch |
+| Neon Auth | the `dev` branch's own auth environment | the default branch's |
+| Tigris bucket | `berco-memories-photos-dev` | `berco-memories-photos` |
+
+**Split both, or neither.** A dev database pointed at the production bucket is *worse* than sharing both: deleting a test photo locally would destroy an object the live app still has a row for, and production would start serving broken images. The two halves move together.
+
+**Neon Auth is branch-aware** — each branch gets an isolated auth environment, and users and sessions are copied when the branch is created, so an existing account can sign in on `dev` with its existing password. The branch's `NEON_AUTH_BASE_URL` is the production one with the endpoint id swapped and `-pooler` dropped; confirm it in Auth → Configuration with the branch selected.
+
+⚠️ **Console-created Neon branches default to a 1-day expiration**, after which the branch and its auth environment are **permanently deleted**. Branches created via the API or CLI have none. After creating a dev branch in the console: Branches → the branch → Actions → Edit expiration → toggle off *"Automatically delete branch after"*.
+
+⚠️ **`fly storage create` has no `--no-attach` flag.** Run inside this repo it reads `fly.toml`, attaches the new bucket to `berco-memories`, and **overwrites the production `AWS_*` / `BUCKET_NAME` secrets** — pointing the live app at an empty bucket. Create dev buckets from a directory with no `fly.toml`, naming the org explicitly:
+
+```bash
+fly storage create -o personal -n berco-memories-photos-dev -p -y   # -p = public, or every thumbnail 404s
+```
+
+A branch copies the `photos` rows, whose keys point into the *production* bucket, so pre-existing media 404s in development. Delete the copied memories on the branch and create test data rather than mirroring objects.
+
+---
+
 ## 5. Database schema (PostgreSQL, via Drizzle)
 
 > Auth tables (users, sessions, OAuth) are managed by **Neon Auth** in the `neon_auth` schema — do **not** re-create them. `profiles` holds only app-specific user data and links to the Neon Auth user id.
@@ -371,7 +397,7 @@ Also not on the server. `lib/download.ts` runs in the browser:
 npm run storage:cors -- https://memories.ghenadie-berco.com
 ```
 
-⚠️ **Name the production origin explicitly.** The script defaults to `NEXT_PUBLIC_APP_URL`, which in a developer's `.env.local` is `http://localhost:3000` — so running it bare authorises development and silently leaves production broken. `PutBucketCors` **replaces** the rule set rather than appending to it, and dev and production share one bucket, so every run must list every origin.
+⚠️ **The script targets whichever bucket `.env.local` names, and `PutBucketCors` replaces the rule set rather than appending to it.** Since 10 August 2026 development has its own bucket (`berco-memories-photos-dev`, see §4a), so running it bare from a dev machine is correct — it authorises `localhost` on the dev bucket and leaves production's rules alone. **To touch the production bucket you must be pointed at it and must name the production origin**, because the default `NEXT_PUBLIC_APP_URL` would otherwise replace production's rule set with `localhost` and silently break every download.
 
 It grants `GET`/`HEAD` and nothing else. It does not widen access: the objects are already world-readable by URL, which is how the CDN serves them at all (NFR-PRIV §5.5). See `scripts/set-bucket-cors.ts`.
 

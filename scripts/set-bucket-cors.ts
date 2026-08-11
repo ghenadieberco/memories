@@ -19,12 +19,15 @@ import { s3 } from "@/lib/storage";
  * "unlisted, not private" model in NFR-PRIV §5.5). It only lets scripts on our
  * own page read a file the browser would happily have rendered anyway.
  *
- * ORIGINS. Extra origins may be passed as arguments, and they matter more than
- * they look: `NEXT_PUBLIC_APP_URL` in a developer's `.env.local` is
- * `http://localhost:3000`, so running this with no arguments authorises
- * development and *not* production. The bucket is shared between the two, and
- * `PutBucketCors` replaces the whole rule set rather than adding to it — so the
- * production origin has to be named every time this is run.
+ * ORIGINS. This targets whichever bucket `.env.local` names, and
+ * `PutBucketCors` replaces the whole rule set rather than adding to it.
+ *
+ * Development has its own bucket (plan §4a), so running this bare from a dev
+ * machine is correct: it authorises localhost on the dev bucket and leaves
+ * production's rules untouched. Pointed at the PRODUCTION bucket, the
+ * production origin must be named explicitly — otherwise the default
+ * `NEXT_PUBLIC_APP_URL` (`http://localhost:3000` in development) replaces
+ * production's rule set and silently breaks every download:
  *
  *   npm run storage:cors -- https://memories.ghenadie-berco.com
  *
