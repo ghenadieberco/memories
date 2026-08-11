@@ -24,6 +24,7 @@ It is descriptive, not authoritative. [Memories-App-Requirements.md](Memories-Ap
 
 ## 1. Getting in
 
+0. **A landing page greets anyone who isn't signed in.** Going to the site shows what Memories is: a short introduction, a **"Create memories"** button, and a slowly rotating 3D carousel of the ten things the app does best — starting with the 20 GB of storage every account gets. It pauses while you're reading a card, you can page through it yourself with the arrows or dots, and if your device asks for reduced motion it stops moving on its own entirely. Clicking the logo anywhere you're signed out — including on a public album someone sent you — brings you back to it. Sign in and you never see it again: you go straight to your memories.
 1. **Sign up** with a name, email address, and password.
 2. **Verify your email** with a 6-digit code sent to your inbox — you enter the code in the app rather than clicking a link.
 3. **Sign in** and **sign out**. If you open the sign-in screen while you're already signed in, you go straight to your memories.

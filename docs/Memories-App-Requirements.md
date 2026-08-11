@@ -53,6 +53,23 @@ Moved to **[Future-Functionalities.md](Future-Functionalities.md), Section 2**, 
 
 ## 3. Functional requirements
 
+### 3.0 Landing page (FR-LAND-*)
+
+Added 10 August 2026 at the owner's request. The app's front door for anyone without a session: it explains what Memories is and invites them to start. The governing decision is **D27** (it lives at the root, and its CTA goes to sign-up).
+
+| ID | Requirement |
+|---|---|
+| FR-LAND-1 | The root URL **`/`** shall show the landing page to any visitor **without a session**. A visitor **with** a session shall be sent straight to their Memories (`FR-AUTH-10`) and shall never see the landing page — the root remains a router for them. |
+| FR-LAND-2 | The page shall carry a **primary call to action, "Create Memories"**, leading to **sign-up**, and a quieter **"Sign in"** for people who already have an account. Neither is the page's bold element — the wordmark is (style guide §11). |
+| FR-LAND-3 | The **wordmark on unauthenticated screens shall lead to the landing page**, including on the public memory page (`/m/[token]`), where it previously led to sign-in. A guest who clicks the logo wants to know what this app *is*, not to be asked for credentials. |
+| FR-LAND-4 | The page shall feature an **automatically rotating, three-dimensional carousel** of cards, each naming one prominent feature. **Up to 10 cards.** |
+| FR-LAND-5 | Feature cards shall be **ordered by magnitude — monetary value or engineering substance first**. The **20 GB of included storage** (`FR-QUOTA-1`) leads, and it shall be described as covering **photos *and* videos**, and as applying to memories the user shares. |
+| FR-LAND-6 | Rotation shall **pause on hover and on keyboard focus**, and resume when both are released, so the card someone is reading cannot slide away from them. |
+| FR-LAND-7 | The carousel shall be **operable without the auto-rotation**: previous/next controls, direct selection of any card, and full keyboard support with a visible focus ring (`NFR-UX`). |
+| FR-LAND-8 | The carousel shall honour **`prefers-reduced-motion`**: no auto-advance and no animated transition. It shall remain fully usable manually — reduced motion removes the movement, never the feature (style guide §8). |
+| FR-LAND-9 | The page shall be **responsive** at the app's single 640px breakpoint, with the three-dimensional presentation degrading to a legible single-card view on narrow screens rather than overflowing. |
+| FR-LAND-10 | The landing page shall be **entirely static marketing content**. It is an unauthenticated route, so it shall query **no user data whatsoever** — no counts, no examples, no photos from real memories. This keeps it outside the access model rather than making it a new case within it (`NFR-SEC`). |
+
 ### 3.1 Authentication & account
 
 | ID | Requirement |
@@ -397,6 +414,7 @@ Despite the name, this table holds **both photos and videos** (`FR-VIDEO-1`). On
 
 ## 6. Screen / navigation map
 
+0. **Landing page** (`/`) — what the app is, with a feature carousel and a "Create Memories" call to action. Shown to anyone without a session; signed-in visitors fall through to Memories (`FR-LAND-1`)
 1. **Register** → (email verification) → Login
 2. **Login** → Memories
 3. **Password reset** (request → email link → set new password)

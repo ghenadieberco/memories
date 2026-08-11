@@ -453,6 +453,18 @@ Build order, because each step depends on the one before:
 
 **Acceptance:** the top bar shows a correct used/total figure that matches a hand-run `SUM` against the database; uploading is refused with a message naming the remaining space once the quota would be exceeded, and refused on the guest path too **without disclosing the owner's figures**; deleting media lowers the figure immediately; a user over quota can still view, share, download, and delete; lowering one user's `storage_quota_bytes` in the database changes only that user's meter.
 
+### Phase 8 — Landing page (FR-LAND-*, D27)
+Owner-requested, specified 10 August 2026. The app's front door: `/` shows a marketing page to anyone without a session, with a coverflow carousel of the ten most substantial features and a "Create memories" call to action.
+
+1. **`lib/landing-features.ts`** — the ten cards as static data, ordered by magnitude per `FR-LAND-5` (20 GB storage first). No database import, ever.
+2. **`components/landing/feature-carousel.tsx`** — a client component: auto-advance, pause on hover/focus, arrows, dots, arrow-key support, and the `prefers-reduced-motion` branch.
+3. **`app/page.tsx`** — the root becomes the landing page for signed-out visitors and keeps redirecting signed-in ones to `/memories`.
+4. **`app/m/[token]/page.tsx`** — repoint the guest wordmark from `/sign-in` to `/` (`FR-LAND-3`).
+
+> ⚠️ **The one that will bite you: Lucide icons cannot be passed from a server component to a client component.** They are React component *functions*, and functions don't cross that boundary. Passing `LANDING_FEATURES` as a prop **typechecks and builds cleanly**, then throws `Functions cannot be passed directly to Client Components` on the first request. The carousel therefore imports the feature list itself rather than receiving it. This cost a 500 on the first run — `npm run build` will not catch it, only loading the page will.
+
+**Acceptance:** signed out, `/` shows the landing page; signed in, `/` still lands on Memories without a flash of marketing; the carousel advances on its own, stops while hovered or focused, and is fully drivable by arrows, dots, and the keyboard; with `prefers-reduced-motion` it does not auto-advance and does not animate, but still works by hand; the page is legible at 390px wide; the wordmark on a public album leads to the landing page.
+
 ---
 
 ## 9. Assumed defaults (resolving the requirements' open questions)
@@ -496,6 +508,13 @@ Build order, because each step depends on the one before:
   - **A limit, not a metering system.** No `bytes_used` counter, no usage history, no per-memory sub-limits, no admin-facing usage report. Usage is a `SUM` derived on read (Section 7c) because a counter would need every delete path to remember it. Held **per user** in `profiles` rather than as an app constant, so `FF-BILLING` can raise one account's allowance with an `UPDATE`.
   - **Consequences made explicit:** the check is **racy** by design (bounded by one file's overshoot — see the warning in Section 7c); **custom memory covers are not counted**, a bounded undercount recorded there as a known gap; and the quota blocks **uploading only** — a user over quota keeps full read, share, download, and delete access (`FR-QUOTA-10`), because a quota is never a reason to withhold someone's own memories.
   - **The subtle one:** `optimized_size_bytes` never included the thumbnail, so any quota built on that column alone silently undercounts every image by ~6.6% (measured after the backfill: 198 KB full-size against a 13 KB thumbnail). Hence `thumbnail_size_bytes` and its backfill.
+
+- **D27 Landing page: at the root, selling to strangers.** Three choices the request left open.
+  - **(a) Where it lives: `/`.** Rejected `/getting-started` and `/welcome`, which both leave a visitor who types the bare domain staring at a login form — the weakest possible first impression, and it denies the marketing page the canonical URL for search and link previews. The root was already a session-branching router, so this is a change of one branch, not new routing. Signed-in users are unaffected: they still fall straight through to `/memories` (`FR-AUTH-10`).
+  - **(b) What the button does: sign-**up**, not sign-in.** The request said the "Create Memories" button should lead to sign-in. It now leads to **sign-up**, at the owner's decision after the mismatch was raised: a landing page exists to convert people who do *not* have an account, and the button's own words promise creating something. Returning users get a quieter "Already have an account? Sign in" beneath it, so nobody is stranded.
+  - **(c) Carousel style: coverflow.** Rejected an orbiting ring (most literally 3D, but text on the angled cards is hard to read and it is fussy on a phone) and a depth stack (calm, but barely reads as 3D). Coverflow keeps the centre card square to the viewer and fully legible, which matters because these cards *are* the argument for signing up.
+  - **The style guide's glass recipe is deliberately overridden on the centre card.** §4's `rgba(255,255,255,0.55)` assumes glass over ambient light; in a coverflow the cards overlap *each other*, and at 55% the card behind renders straight through the one in front — two features' text superimposed, which is what the first build did. The active card sits at 0.9 opacity and neighbours keep the translucency, becoming the "colourful light behind" themselves. Neighbours also blur by distance, which reads as depth and stops their copy competing with the centre card's.
+  - **The page reads no user data at all** (`FR-LAND-10`), which is the cheapest possible answer to "is the new unauthenticated route safe?" — it has no facts about anybody to leak. Keep it that way: the temptation later will be a live photo count or a real example album, and either one drags this page into the access model.
 
 ---
 

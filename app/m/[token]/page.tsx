@@ -66,10 +66,13 @@ export default async function PublicMemoryPage({
       <div className="mx-auto max-w-[1100px]">
         <header className="mb-5 flex items-center">
           {/*
-            A guest has no session, so the wordmark points at sign-in rather
-            than /memories — which would only bounce them here anyway.
+            FR-LAND-3 — the wordmark leads to the landing page, not sign-in.
+            A guest who has just been shown someone's album and clicks the logo
+            is asking "what is this app?", and the honest answer is the page
+            that explains it. Asking them for credentials instead answered a
+            question they hadn't asked.
           */}
-          <Link href="/sign-in" aria-label="Sign in to Memories">
+          <Link href="/" aria-label="What is Memories?">
             <Wordmark size="nav" />
           </Link>
         </header>
